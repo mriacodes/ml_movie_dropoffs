@@ -1,4 +1,5 @@
 𝗕𝗔𝗖𝗞𝗘𝗡𝗗 - MARIA + MARIVIC
+
 1. Raw Data Preparation
     - Preprocessing - cleaning nulls, correcting types, standardizing formats
     - Seeding - filling in missing columns/data (e.g., movie titles, completion status, reasons)
