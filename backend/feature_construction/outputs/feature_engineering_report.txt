@@ -1,0 +1,69 @@
+
+# Feature Engineering Report
+## Movie Dropoff Prediction Project
+
+### Dataset Summary
+- **Total Samples**: 78
+- **Original Features**: 97
+- **Final Features**: 10
+- **Target Balance**: 64.10% positive class (dropoff tendency)
+
+### Feature Engineering Results
+- **New Features Created**: 16
+- **Feature Categories**:
+  - Binary features: 2
+  - Engineered features: 2
+  - Encoded features: 6
+
+### Feature Selection Comparison
+                    Accuracy      F1  ROC-AUC
+Method                                       
+Baseline              0.8594  0.9097   0.8958
+Variance Threshold    0.8594  0.9097   0.8958
+chi_square            0.9062  0.9423   0.8750
+lasso                 1.0000  1.0000   1.0000
+mutual_info           1.0000  1.0000   1.0000
+rfe                   0.9062  0.9423   0.9083
+tree_based            0.9062  0.9423   0.8833
+
+### Best Performing Configuration
+- **Method**: MUTUAL_INFO
+- **Features**: 10
+- **Composite Score**: 1.0000
+- **Average Accuracy**: 1.0000
+- **Average F1**: 1.0000
+- **Average ROC-AUC**: 1.0000
+
+### Top Features (from MUTUAL_INFO)
+1. how_do_you_usually_discover_movies_you_decide_to_watch_trailer
+2. in_general_what_are_the_main_reasons_you_stop_watching_movies_before_finishing_boring_uninteresting_plot
+3. total_stopping_reasons
+4. patience_score
+5. Have you ever started watching a movie but did not finish it?_encoded
+6. How often do you stop watching movies before finishing them?_encoded
+7. Thinking about movies you have started but did not finish, at what point do you usually stop watching?_encoded
+8. How often do you typically pause or stop the movie during viewing?_encoded
+9. How often do you stop watching movies before finishing them?_ordinal
+10. How often do you typically pause or stop the movie during viewing?_ordinal
+
+### Key Insights
+1. **Feature Selection Impact**: MUTUAL_INFO method achieved the best balance of performance and stability
+2. **Engineered Features**: 2 custom features were selected, indicating their importance
+3. **Model Performance**: Best accuracy of 1.0000 achieved with Random Forest
+4. **Feature Efficiency**: Using 10 features vs 123 original features
+
+### Recommendations
+1. **Primary Model**: Use Random Forest with MUTUAL_INFO features
+2. **Feature Set**: 10 features provide optimal balance of performance and interpretability
+3. **Model Deployment**: Consider ensemble approach combining top-performing models
+4. **Future Work**: Investigate feature interactions and temporal patterns
+
+### Files Generated
+- optimal_features_rfe.pkl
+- optimal_features_chi2.pkl  
+- optimal_features_mutual_info.pkl
+- final_feature_set.pkl
+- X_train_engineered.pkl, X_val_engineered.pkl, X_test_engineered.pkl
+- y_train.pkl, y_val.pkl, y_test.pkl
+- model_performance_comparison.csv
+- feature_analysis_results.pkl

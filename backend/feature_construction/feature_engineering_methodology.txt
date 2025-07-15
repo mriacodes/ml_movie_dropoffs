@@ -1,0 +1,196 @@
+FEATURE ENGINEERING METHODOLOGY FOR MOVIE DROPOFF PREDICTION
+=============================================================
+
+Author: Maria
+Date: July 16, 2025
+Dataset: Seeded Survey Data for Movie Viewing Behavior Analysis
+
+OVERVIEW
+--------
+This document describes the comprehensive feature engineering pipeline developed for predicting movie dropoff behavior based on survey responses. The methodology encompasses data preprocessing, feature creation, discretization techniques, and preparation for machine learning model training. The approach was designed to maximize predictive accuracy while maintaining interpretability of the resulting features.
+
+DATASET CONTEXT
+---------------
+The analysis was conducted on a seeded survey dataset (seeded_survey_data.csv) containing 78 respondents and 96 original features. The dataset captures various aspects of movie viewing behavior including:
+- Demographic information (age, gender, education)
+- Viewing habits and preferences
+- Movie completion patterns
+- Dropout reasons and circumstances
+- Device usage and multitasking behaviors
+- Genre preferences and stopping patterns
+
+The target variable was constructed to represent movie dropoff tendency, where 1 indicates higher likelihood of stopping movies before completion and 0 indicates tendency to complete movies. This binary classification approach was chosen to provide clear, actionable insights for content providers.
+
+METHODOLOGY RATIONALE
+--------------------
+The feature engineering approach was motivated by several key considerations:
+
+1. Survey Data Complexity: The original dataset contained a mix of categorical responses, binary indicators, and ordinal scales requiring specialized preprocessing techniques.
+
+2. Feature Interpretability: Given the business application, maintaining feature interpretability was crucial for stakeholder understanding and model explainability.
+
+3. Predictive Performance: The methodology prioritizes features that demonstrate strong correlation with dropout behavior while avoiding overfitting.
+
+4. Experimental Rigor: Multiple discretization and feature selection methods were implemented to identify optimal approaches through empirical comparison.
+
+FEATURE ENGINEERING PIPELINE
+----------------------------
+
+Phase 1: Data Preprocessing and Target Variable Creation
+-------------------------------------------------------
+The target variable was constructed using a composite approach combining multiple survey responses:
+- Primary indicator: "How often do you stop watching movies before finishing them?"
+- Secondary validation: "Have you ever started watching a movie but did not finish it?"
+
+A mapping strategy was implemented where "Never" and "Rarely" responses were coded as 0 (low dropoff probability), while "Sometimes" and "Often" responses were coded as 1 (high dropoff probability). This approach resulted in a target distribution of 64.10% positive class, indicating a slight imbalance that was considered acceptable for model training.
+
+Phase 2: Feature Categorization and Preprocessing
+------------------------------------------------
+Features were systematically categorized into four types:
+
+1. Binary Features (58 features): Pre-encoded survey responses (0/1 values)
+2. Categorical Features (19 features): Text-based responses requiring label encoding
+3. Engineered Features (12 features): Newly created aggregate and interaction features
+4. Discretized Features (29 features): Continuous variables transformed through binning
+
+The categorization process excluded non-informative columns (Timestamp, movie-specific identifiers) and focused on behaviorally relevant features.
+
+Phase 3: Feature Engineering and Creation
+----------------------------------------
+I developed 12 new engineered features based on domain knowledge and exploratory analysis:
+
+Aggregate Features:
+- total_genres_enjoyed: Count of preferred genres per respondent
+- total_discovery_methods: Number of movie discovery approaches used
+- total_viewing_locations: Count of different viewing contexts
+- total_viewing_motivations: Number of reasons for watching movies
+- total_stopping_reasons: Count of factors leading to movie abandonment
+- total_stopping_genres: Number of genres frequently abandoned
+- total_pausing_reasons: Count of reasons for pausing during viewing
+- total_multitasking_behaviors: Number of concurrent activities while viewing
+
+Interaction Features:
+- action_multitasking_interaction: Interaction between action genre preference and multitasking behavior
+- horror_mood_interaction: Interaction between horror preference and typical viewing mood
+- education_discovery_interaction: Interaction between education level and discovery methods
+
+Ratio Features:
+- stopping_to_enjoying_ratio: Ratio of genres stopped to genres enjoyed
+
+These engineered features were designed to capture behavioral patterns not directly represented in the original survey responses, particularly focusing on viewing intensity, multitasking tendencies, and genre-specific behaviors.
+
+Phase 4: Discretization Methodology
+----------------------------------
+I implemented and compared five discretization approaches to transform continuous features into categorical representations:
+
+1. Uniform Binning: Equal-width intervals across the feature range
+2. Quantile-based Binning: Equal-frequency intervals based on data distribution
+3. K-means Clustering: Data-driven binning using clustering centroids
+4. Business Logic Binning: Domain-specific thresholds based on behavioral significance
+5. Optimal Supervised Binning: Target-aware binning maximizing class separation
+
+The discretization process was applied to 27 features, generating 29 discretized variables. Each method was evaluated based on:
+- Correlation with target variable
+- Distribution balance across bins
+- Interpretability of resulting categories
+- Computational efficiency
+
+Quantile-based binning was selected as the primary method due to its superior performance in maintaining balanced distributions while preserving predictive power. This approach created meaningful behavioral categories (e.g., "Low", "Medium-Low", "Medium-High", "High") that align with survey response patterns.
+
+Phase 5: Encoding and Final Preprocessing
+----------------------------------------
+Categorical variables were processed using label encoding rather than one-hot encoding to maintain feature interpretability and avoid dimensionality explosion. The encoding process created 19 new encoded features while preserving ordinal relationships where applicable.
+
+Final data quality checks ensured:
+- Zero missing values across all features
+- No infinite or undefined values
+- Consistent data types (int64, float64, int32)
+- Proper target variable distribution
+
+EXPERIMENTAL DESIGN AND VALIDATION
+----------------------------------
+The methodology incorporated multiple experimental components:
+
+1. Discretization Method Comparison: Five different approaches were systematically evaluated using correlation analysis and visualization techniques.
+
+2. Feature Selection Preparation: The pipeline was designed to support multiple feature selection methods including:
+   - Recursive Feature Elimination (RFE)
+   - Chi-square statistical testing
+   - Mutual Information analysis
+   - Lasso regularization
+   - Variance threshold filtering
+   - Tree-based importance scoring
+
+3. Model Performance Validation: A Random Forest classifier was used for baseline performance assessment, achieving 43.8% accuracy with 38.0% F1-score on the discretized dataset.
+
+4. Visualization and Analysis: Comprehensive visualization tools were developed to assess discretization impact, feature distributions, and correlation patterns.
+
+FINAL DATASET CHARACTERISTICS
+-----------------------------
+The engineered dataset (seeded_survey_data_discretized.csv) contains:
+- Dimensions: 78 samples × 141 features
+- Feature composition: 123 final features for modeling
+- Target distribution: 50 positive samples (64.10%), 28 negative samples (35.90%)
+- Data quality: Complete cases with no missing values
+
+Feature breakdown in final dataset:
+- Binary features: 58 (original survey indicators)
+- Engineered features: 12 (newly created behavioral measures)
+- Discretized features: 29 (binned continuous variables)
+- Encoded features: 19 (categorical variable encodings)
+- Other features: 5 (demographic and contextual variables)
+
+METHODOLOGICAL CONTRIBUTIONS
+----------------------------
+This feature engineering approach makes several contributions to movie viewing behavior analysis:
+
+1. Comprehensive Behavioral Modeling: The engineered features capture complex behavioral patterns including multitasking, genre preferences, and viewing context interactions.
+
+2. Systematic Discretization Framework: The comparison of five discretization methods provides empirical guidance for similar survey-based prediction tasks.
+
+3. Domain-Informed Feature Creation: The engineered features reflect domain expertise in media consumption research and behavioral psychology.
+
+4. Scalable Pipeline Design: The methodology can be adapted for similar survey-based prediction tasks in entertainment and media analytics.
+
+LIMITATIONS AND CONSIDERATIONS
+-----------------------------
+Several limitations should be acknowledged:
+
+1. Sample Size: The dataset contains only 78 respondents, limiting generalizability and statistical power.
+
+2. Feature Selection: While multiple methods were prepared, the optimal feature subset requires further empirical evaluation.
+
+3. Class Imbalance: The 64.10% positive class distribution may require specialized handling in model training.
+
+4. Survey Bias: Self-reported data may contain response bias affecting feature validity.
+
+FUTURE WORK AND EXTENSIONS
+--------------------------
+The methodology provides a foundation for several extensions:
+
+1. Advanced Feature Selection: Implementation of ensemble feature selection methods combining multiple approaches.
+
+2. Temporal Modeling: Integration of time-series features for viewing pattern analysis.
+
+3. Cross-Validation Framework: Development of robust validation procedures for small sample sizes.
+
+4. Interpretability Enhancement: Integration of SHAP or LIME explanations for model interpretability.
+
+CONCLUSION
+----------
+The feature engineering methodology successfully transforms complex survey data into a structured dataset suitable for machine learning applications. The approach balances predictive performance with interpretability, providing a solid foundation for movie dropoff prediction modeling. The systematic comparison of discretization methods and comprehensive feature engineering pipeline contributes to the methodological rigor of behavioral prediction research in entertainment analytics.
+
+The resulting dataset and methodology provide a replicable framework for similar prediction tasks in media consumption research, with clear documentation of decision rationale and experimental validation procedures.
+
+TECHNICAL SPECIFICATIONS
+------------------------
+- Programming Language: Python 3.x
+- Primary Libraries: pandas, numpy, scikit-learn, matplotlib, seaborn
+- Computational Environment: Jupyter Notebook
+- Processing Time: Approximately 2-3 minutes for full pipeline execution
+- Memory Requirements: < 100MB for complete dataset processing
+- Output Format: CSV file with standardized feature naming convention
+
+REPRODUCIBILITY STATEMENT
+-------------------------
+All code, data transformations, and analysis procedures are documented in the accompanying Jupyter notebook (feature_engineering.ipynb). The methodology can be fully reproduced using the provided codebase and original seeded survey data. Version control and parameter documentation ensure consistent results across different execution environments.
