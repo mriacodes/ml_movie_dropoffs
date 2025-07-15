@@ -1,0 +1,40 @@
+SURVEY DATA PREPROCESSING REPORT
+==================================================
+
+Original dataset: dropoffs.csv
+Preprocessed dataset: dropoffs_preprocessed_20250715_210149.csv
+Processing date: 2025-07-15 21:01:49
+
+PREPROCESSING STEPS COMPLETED:
+1. Data Loading and Initial Exploration
+2. Irrelevant Column Removal (QR codes, emails, empty columns)
+3. Consent Validation (removed non-consenting respondents)
+4. Missing Value Analysis
+5. Checkbox Response Separation
+6. Data Type Standardization
+7. Duplicate Detection and Removal
+8. Final Data Quality Check
+
+DATASET STATISTICS:
+Final rows: 78
+Final columns: 112
+Memory usage: 0.18 MB
+
+CHECKBOX SEPARATION SUMMARY:
+Total binary columns created: 69
+- Which genres do you enjoy watching the most: 14 columns
+- How do you usually discover movies you decide to watch: 7 columns
+- Where do you usually watch movies: 8 columns
+- Why do you usually choose to watch movies: 9 columns
+- In general, what are the main reasons you stop watching movies before finishing: 6 columns
+- Which genres do you find yourself stopping more often before finishing: 11 columns
+- Why do you usually pause the movie: 8 columns
+- Do you usually do other things while watching movies: 6 columns
+
+DATA TYPES:
+- int8: 69 columns
+- string: 28 columns
+- float64: 15 columns
+
+NOTE: This is preprocessed data only. Feature transformation, 
+discretization, and feature engineering will be done in the next phase.
