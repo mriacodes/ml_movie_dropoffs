@@ -1,0 +1,26 @@
+𝗕𝗔𝗖𝗞𝗘𝗡𝗗 - MARIA + MARIVIC
+1. Raw Data Preparation
+    - Preprocessing - cleaning nulls, correcting types, standardizing formats
+    - Seeding - filling in missing columns/data (e.g., movie titles, completion status, reasons)
+2. Feature Construction
+    - Feature Transformation - encoding, scaling, discretizing, one-hot encoding
+    - Feature Engineering - creating new fields (e.g., engagement score, genre count)
+3. Model Framing -  this is where you define what to predict and what inputs to use.
+    - Defining Target - create your y
+    - Feature Extraction - selecting which features become X
+4. Assembling Final Dataset - This step combines target + features into a single DataFrame for modeling. You typically do this by: ml_dataset = final_df[feature_cols + [target_col]]
+5. Data Balancing & Validation Prep -  SMOTE must be applied only on the training set, never the full dataset.
+    - train_test_split(X, y)
+    - apply SMOTE to X_train, y_train
+6. Model Evaluation
+    - Experimentation
+        - Decision Trees Based Methods
+        - Naive Bayes Classification
+        - Neural Networks (Artificial Neural Networks)
+        - Nearest Neighbor Classification (K-NN)
+    - Compare
+        Use: 
+           - F1-score 
+           - Precision/Recall (especially for minority class) 
+           - ROC-AUC
+    - Visualize using confusion matrix, ROC curve
