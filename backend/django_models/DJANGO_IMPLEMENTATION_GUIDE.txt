@@ -1,0 +1,914 @@
+================================================================================
+DJANGO WEB APPLICATION IMPLEMENTATION GUIDE
+MOVIE DROPOFF PREDICTION SYSTEM
+================================================================================
+
+Project: Survey-Seeding for Movie Engagement Prediction
+Model: Random Forest Classifier (60% Accuracy, 75% F1-Score, 92.3% Recall)
+Date: July 16, 2025
+
+================================================================================
+OVERVIEW
+================================================================================
+
+This guide provides step-by-step instructions to integrate the trained Random Forest
+movie dropoff prediction model into a Django web application. The system will:
+
+1. Collect user behavior data through surveys
+2. Predict movie completion likelihood
+3. Recommend movies based on dropout probability
+4. Continuously improve through user feedback
+
+================================================================================
+PREREQUISITES
+================================================================================
+
+✅ Required Software:
+- Python 3.9 or higher
+- Django 4.0 or higher
+- Git (for version control)
+
+✅ Required Files (Already Created):
+- movie_dropoff_model.pkl (173 KB) - Trained Random Forest model
+- model_info.json (4 KB) - Model metadata and performance metrics
+- class_mappings.json (279 bytes) - Class labels and distributions
+- survey_questions.json (2 KB) - Survey form configuration
+- django_prediction_utils.py (9 KB) - Prediction utilities
+- django_retraining_utils.py (12 KB) - Continuous learning system
+- smote_transformer.pkl (13 KB) - Preprocessing transformer
+
+================================================================================
+STEP 1: DJANGO PROJECT SETUP
+================================================================================
+
+1.1 Create Django Project
+--------------------------
+Open terminal and run:
+
+```bash
+# Create new Django project
+django-admin startproject movie_prediction_app
+cd movie_prediction_app
+
+# Create main application
+python manage.py startapp prediction
+
+# Create virtual environment (recommended)
+python -m venv movie_env
+source movie_env/bin/activate  # On Windows: movie_env\Scripts\activate
+```
+
+1.2 Install Required Dependencies
+---------------------------------
+Create requirements.txt:
+
+```
+Django>=4.0
+scikit-learn>=1.3.0
+pandas>=2.0.0
+numpy>=1.24.0
+joblib>=1.3.0
+imbalanced-learn>=0.11.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+```
+
+Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+1.3 Configure Django Settings
+-----------------------------
+In movie_prediction_app/settings.py, add:
+
+```python
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'prediction',  # Add this line
+]
+
+# Add media files configuration
+import os
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# ML Models directory
+ML_MODELS_DIR = os.path.join(BASE_DIR, 'ml_models')
+ML_DATA_DIR = os.path.join(BASE_DIR, 'ml_data')
+```
+
+================================================================================
+STEP 2: COPY MODEL FILES
+================================================================================
+
+2.1 Create Directory Structure
+------------------------------
+```bash
+# In your Django project root directory
+mkdir ml_models
+mkdir ml_data
+mkdir static
+mkdir templates
+```
+
+2.2 Copy Model Files
+-------------------
+Copy all files from backend/django_models/ to your Django project:
+
+```
+movie_prediction_app/
+├── ml_models/
+│   ├── movie_dropoff_model.pkl
+│   ├── model_info.json
+│   ├── class_mappings.json
+│   ├── survey_questions.json
+│   ├── django_prediction_utils.py
+│   ├── django_retraining_utils.py
+│   └── smote_transformer.pkl
+├── ml_data/
+│   └── (empty - for user feedback)
+└── prediction/
+    └── (Django app files)
+```
+
+2.3 Copy Utility Files to Django App
+------------------------------------
+```bash
+# Copy prediction utilities to Django app
+cp ml_models/django_prediction_utils.py prediction/ml_utils.py
+cp ml_models/django_retraining_utils.py prediction/retraining_utils.py
+```
+
+================================================================================
+STEP 3: CREATE DJANGO MODELS
+================================================================================
+
+3.1 Define Database Models
+--------------------------
+In prediction/models.py:
+
+```python
+from django.db import models
+from django.contrib.auth.models import User
+import json
+
+class UserSurveyResponse(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    session_id = models.CharField(max_length=100, null=True, blank=True)
+    
+    # Survey responses (store as JSON)
+    boring_plot = models.BooleanField(default=False)
+    total_stopping_reasons = models.IntegerField(default=1)
+    stop_historical = models.BooleanField(default=False)
+    enjoy_action = models.BooleanField(default=False)
+    enjoy_romance = models.BooleanField(default=False)
+    pause_when_bored = models.BooleanField(default=False)
+    focus_only = models.BooleanField(default=False)
+    discover_trailer = models.BooleanField(default=False)
+    watch_for_entertainment = models.BooleanField(default=False)
+    patience_score = models.FloatField(default=0.5)
+    completion_ratio = models.FloatField(default=0.5)
+    preferred_genres = models.TextField(default='[]')  # Store as JSON
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def set_preferred_genres(self, genre_list):
+        self.preferred_genres = json.dumps(genre_list)
+    
+    def get_preferred_genres(self):
+        return json.loads(self.preferred_genres)
+
+class MovieRecommendation(models.Model):
+    user_response = models.ForeignKey(UserSurveyResponse, on_delete=models.CASCADE)
+    movie_title = models.CharField(max_length=255)
+    movie_id = models.CharField(max_length=100)
+    genre = models.CharField(max_length=100)
+    imdb_score = models.FloatField(null=True, blank=True)
+    runtime = models.IntegerField(null=True, blank=True)
+    
+    # Prediction results
+    dropoff_probability = models.FloatField()
+    completion_probability = models.FloatField()
+    recommendation_score = models.FloatField()
+    interpretation = models.CharField(max_length=255)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class UserFeedback(models.Model):
+    recommendation = models.ForeignKey(MovieRecommendation, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    
+    # Actual behavior
+    watched_movie = models.BooleanField(default=False)
+    completed_movie = models.BooleanField(default=False)
+    watch_time_minutes = models.IntegerField(null=True, blank=True)
+    user_rating = models.IntegerField(null=True, blank=True)  # 1-5 stars
+    
+    # Feedback
+    feedback_text = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+```
+
+3.2 Create and Run Migrations
+-----------------------------
+```bash
+python manage.py makemigrations prediction
+python manage.py migrate
+```
+
+================================================================================
+STEP 4: CREATE DJANGO FORMS
+================================================================================
+
+4.1 Create Survey Forms
+-----------------------
+Create prediction/forms.py:
+
+```python
+from django import forms
+from .models import UserSurveyResponse, UserFeedback
+
+GENRE_CHOICES = [
+    ('Action', 'Action'),
+    ('Adventure', 'Adventure'),
+    ('Animation', 'Animation'),
+    ('Biography', 'Biography'),
+    ('Comedy', 'Comedy'),
+    ('Crime', 'Crime'),
+    ('Documentary', 'Documentary'),
+    ('Drama', 'Drama'),
+    ('Family', 'Family'),
+    ('Fantasy', 'Fantasy'),
+    ('History', 'History'),
+    ('Horror', 'Horror'),
+    ('Music', 'Music'),
+    ('Mystery', 'Mystery'),
+    ('Romance', 'Romance'),
+    ('Sci-Fi', 'Sci-Fi'),
+    ('Sport', 'Sport'),
+    ('Thriller', 'Thriller'),
+    ('War', 'War'),
+    ('Western', 'Western'),
+]
+
+class MovieSurveyForm(forms.ModelForm):
+    preferred_genres = forms.MultipleChoiceField(
+        choices=GENRE_CHOICES,
+        widget=forms.CheckboxSelectMultiple,
+        required=False
+    )
+    
+    patience_score = forms.FloatField(
+        min_value=0.0,
+        max_value=1.0,
+        widget=forms.NumberInput(attrs={'step': '0.1'}),
+        help_text="Rate your patience level when watching movies (0.0 = impatient, 1.0 = very patient)"
+    )
+    
+    completion_ratio = forms.FloatField(
+        min_value=0.0,
+        max_value=1.0,
+        widget=forms.NumberInput(attrs={'step': '0.1'}),
+        help_text="What percentage of movies do you typically complete? (0.0 = 0%, 1.0 = 100%)"
+    )
+    
+    class Meta:
+        model = UserSurveyResponse
+        fields = [
+            'boring_plot', 'total_stopping_reasons', 'stop_historical',
+            'enjoy_action', 'enjoy_romance', 'pause_when_bored',
+            'focus_only', 'discover_trailer', 'watch_for_entertainment',
+            'patience_score', 'completion_ratio', 'preferred_genres'
+        ]
+        widgets = {
+            'total_stopping_reasons': forms.NumberInput(attrs={'min': 1, 'max': 6}),
+        }
+
+class UserFeedbackForm(forms.ModelForm):
+    user_rating = forms.IntegerField(
+        min_value=1,
+        max_value=5,
+        widget=forms.NumberInput(attrs={'min': 1, 'max': 5}),
+        help_text="Rate the movie from 1 (terrible) to 5 (excellent)"
+    )
+    
+    class Meta:
+        model = UserFeedback
+        fields = ['watched_movie', 'completed_movie', 'watch_time_minutes', 'user_rating', 'feedback_text']
+```
+
+================================================================================
+STEP 5: CREATE DJANGO VIEWS
+================================================================================
+
+5.1 Main Prediction Views
+-------------------------
+Create prediction/views.py:
+
+```python
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from django.views.generic import ListView
+import json
+
+from .forms import MovieSurveyForm, UserFeedbackForm
+from .models import UserSurveyResponse, MovieRecommendation, UserFeedback
+from .ml_utils import MovieDropoffPredictor
+
+def survey_view(request):
+    if request.method == 'POST':
+        form = MovieSurveyForm(request.POST)
+        if form.is_valid():
+            # Save survey response
+            survey_response = form.save(commit=False)
+            if request.user.is_authenticated:
+                survey_response.user = request.user
+            else:
+                survey_response.session_id = request.session.session_key
+            
+            # Handle preferred genres
+            preferred_genres = form.cleaned_data['preferred_genres']
+            survey_response.set_preferred_genres(preferred_genres)
+            survey_response.save()
+            
+            # Redirect to prediction results
+            return redirect('prediction_results', survey_id=survey_response.id)
+    else:
+        form = MovieSurveyForm()
+    
+    return render(request, 'prediction/survey.html', {'form': form})
+
+def prediction_results_view(request, survey_id):
+    survey_response = get_object_or_404(UserSurveyResponse, id=survey_id)
+    
+    # Prepare user responses for prediction
+    user_responses = {
+        'boring_plot': survey_response.boring_plot,
+        'total_stopping_reasons': survey_response.total_stopping_reasons,
+        'stop_historical': survey_response.stop_historical,
+        'enjoy_action': survey_response.enjoy_action,
+        'enjoy_romance': survey_response.enjoy_romance,
+        'pause_when_bored': survey_response.pause_when_bored,
+        'focus_only': survey_response.focus_only,
+        'discover_trailer': survey_response.discover_trailer,
+        'watch_for_entertainment': survey_response.watch_for_entertainment,
+        'patience_score': survey_response.patience_score,
+        'completion_ratio': survey_response.completion_ratio,
+    }
+    
+    # Initialize predictor and get prediction
+    predictor = MovieDropoffPredictor()
+    prediction = predictor.predict_dropoff_probability(user_responses)
+    
+    # Get sample movies (you'll need to integrate with IMDB API)
+    sample_movies = get_sample_movies(survey_response.get_preferred_genres())
+    
+    # Get movie-specific predictions
+    movie_predictions = predictor.batch_predict_movies(user_responses, sample_movies)
+    
+    # Save recommendations to database
+    for movie_pred in movie_predictions[:10]:  # Top 10
+        MovieRecommendation.objects.create(
+            user_response=survey_response,
+            movie_title=movie_pred['title'],
+            movie_id=movie_pred.get('id', ''),
+            genre=movie_pred.get('genre', ''),
+            imdb_score=movie_pred.get('imdb_score'),
+            runtime=movie_pred.get('runtime'),
+            dropoff_probability=movie_pred['dropoff_probability'],
+            completion_probability=movie_pred['completion_probability'],
+            recommendation_score=movie_pred['recommendation_score'],
+            interpretation=movie_pred['interpretation']
+        )
+    
+    context = {
+        'survey_response': survey_response,
+        'prediction': prediction,
+        'movie_recommendations': movie_predictions[:10],
+        'predictor_info': predictor.model_info
+    }
+    
+    return render(request, 'prediction/results.html', context)
+
+def feedback_view(request, recommendation_id):
+    recommendation = get_object_or_404(MovieRecommendation, id=recommendation_id)
+    
+    if request.method == 'POST':
+        form = UserFeedbackForm(request.POST)
+        if form.is_valid():
+            feedback = form.save(commit=False)
+            feedback.recommendation = recommendation
+            if request.user.is_authenticated:
+                feedback.user = request.user
+            feedback.save()
+            
+            messages.success(request, 'Thank you for your feedback!')
+            return redirect('prediction_results', survey_id=recommendation.user_response.id)
+    else:
+        form = UserFeedbackForm()
+    
+    return render(request, 'prediction/feedback.html', {
+        'form': form,
+        'recommendation': recommendation
+    })
+
+def get_sample_movies(preferred_genres):
+    """
+    Placeholder function to get sample movies.
+    Replace with actual IMDB API integration.
+    """
+    sample_movies = [
+        {
+            'title': 'The Shawshank Redemption',
+            'id': 'tt0111161',
+            'genre': 'Drama',
+            'imdb_score': 9.3,
+            'runtime': 142
+        },
+        {
+            'title': 'The Godfather',
+            'id': 'tt0068646',
+            'genre': 'Crime',
+            'imdb_score': 9.2,
+            'runtime': 175
+        },
+        {
+            'title': 'The Dark Knight',
+            'id': 'tt0468569',
+            'genre': 'Action',
+            'imdb_score': 9.0,
+            'runtime': 152
+        },
+        {
+            'title': 'Pulp Fiction',
+            'id': 'tt0110912',
+            'genre': 'Crime',
+            'imdb_score': 8.9,
+            'runtime': 154
+        },
+        {
+            'title': 'Forrest Gump',
+            'id': 'tt0109830',
+            'genre': 'Drama',
+            'imdb_score': 8.8,
+            'runtime': 142
+        }
+    ]
+    
+    # Filter by preferred genres if provided
+    if preferred_genres:
+        filtered_movies = [m for m in sample_movies if m['genre'] in preferred_genres]
+        return filtered_movies if filtered_movies else sample_movies
+    
+    return sample_movies
+```
+
+================================================================================
+STEP 6: CREATE TEMPLATES
+================================================================================
+
+6.1 Base Template
+-----------------
+Create templates/base.html:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Movie Dropoff Prediction{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .prediction-card { margin-bottom: 20px; }
+        .high-risk { border-left: 5px solid #dc3545; }
+        .medium-risk { border-left: 5px solid #ffc107; }
+        .low-risk { border-left: 5px solid #28a745; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">Movie Prediction</a>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+
+        {% block content %}
+        {% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+```
+
+6.2 Survey Template
+-------------------
+Create templates/prediction/survey.html:
+
+```html
+{% extends 'base.html' %}
+
+{% block title %}Movie Behavior Survey{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3>Movie Watching Behavior Survey</h3>
+                <p class="mb-0">Help us understand your movie watching habits to provide better recommendations.</p>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>Stopping Behavior</h5>
+                            <div class="mb-3">
+                                <label class="form-label">{{ form.boring_plot.label }}</label>
+                                {{ form.boring_plot }}
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">{{ form.total_stopping_reasons.label }}</label>
+                                {{ form.total_stopping_reasons }}
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">{{ form.stop_historical.label }}</label>
+                                {{ form.stop_historical }}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h5>Preferences</h5>
+                            <div class="mb-3">
+                                <label class="form-label">{{ form.enjoy_action.label }}</label>
+                                {{ form.enjoy_action }}
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">{{ form.enjoy_romance.label }}</label>
+                                {{ form.enjoy_romance }}
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">{{ form.discover_trailer.label }}</label>
+                                {{ form.discover_trailer }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>Viewing Habits</h5>
+                            <div class="mb-3">
+                                <label class="form-label">{{ form.pause_when_bored.label }}</label>
+                                {{ form.pause_when_bored }}
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">{{ form.focus_only.label }}</label>
+                                {{ form.focus_only }}
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">{{ form.watch_for_entertainment.label }}</label>
+                                {{ form.watch_for_entertainment }}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h5>Personal Metrics</h5>
+                            <div class="mb-3">
+                                <label class="form-label">{{ form.patience_score.label }}</label>
+                                {{ form.patience_score }}
+                                <small class="form-text text-muted">{{ form.patience_score.help_text }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">{{ form.completion_ratio.label }}</label>
+                                {{ form.completion_ratio }}
+                                <small class="form-text text-muted">{{ form.completion_ratio.help_text }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Preferred Genres</label>
+                        <div class="row">
+                            {% for choice in form.preferred_genres %}
+                                <div class="col-md-3">
+                                    {{ choice.tag }}
+                                    <label for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-lg">Get Movie Recommendations</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+```
+
+6.3 Results Template
+--------------------
+Create templates/prediction/results.html:
+
+```html
+{% extends 'base.html' %}
+
+{% block title %}Your Movie Predictions{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h4>Your Dropout Prediction</h4>
+            </div>
+            <div class="card-body">
+                <h5>Overall Risk: {{ prediction.interpretation }}</h5>
+                <div class="progress mb-3">
+                    <div class="progress-bar {% if prediction.dropoff_probability > 0.7 %}bg-danger{% elif prediction.dropoff_probability > 0.4 %}bg-warning{% else %}bg-success{% endif %}" 
+                         style="width: {{ prediction.dropoff_probability|floatformat:1|mul:100 }}%">
+                        {{ prediction.dropoff_probability|floatformat:1|mul:100 }}%
+                    </div>
+                </div>
+                <p><strong>Completion Probability:</strong> {{ prediction.completion_probability|floatformat:1|mul:100 }}%</p>
+                <p><strong>Recommendation:</strong> {{ prediction.recommended_action }}</p>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>Model Information</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Algorithm:</strong> {{ predictor_info.model_type }}</p>
+                <p><strong>Accuracy:</strong> {{ predictor_info.performance_metrics.accuracy|floatformat:1|mul:100 }}%</p>
+                <p><strong>F1-Score:</strong> {{ predictor_info.performance_metrics.f1_score|floatformat:3 }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <h3>Recommended Movies</h3>
+        {% for movie in movie_recommendations %}
+            <div class="card prediction-card {% if movie.dropoff_probability > 0.7 %}high-risk{% elif movie.dropoff_probability > 0.4 %}medium-risk{% else %}low-risk{% endif %}">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h5>{{ movie.title }}</h5>
+                            <p><strong>Genre:</strong> {{ movie.genre }}</p>
+                            {% if movie.imdb_score %}
+                                <p><strong>IMDB Score:</strong> {{ movie.imdb_score }}/10</p>
+                            {% endif %}
+                            {% if movie.runtime %}
+                                <p><strong>Runtime:</strong> {{ movie.runtime }} minutes</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <p><strong>{{ movie.interpretation }}</strong></p>
+                            <p>Completion Chance: {{ movie.completion_probability|floatformat:1|mul:100 }}%</p>
+                            <p>Dropout Risk: {{ movie.dropoff_probability|floatformat:1|mul:100 }}%</p>
+                            <a href="#" class="btn btn-primary btn-sm">Watch Movie</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+```
+
+================================================================================
+STEP 7: URL CONFIGURATION
+================================================================================
+
+7.1 App URLs
+------------
+Create prediction/urls.py:
+
+```python
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('', views.survey_view, name='survey'),
+    path('results/<int:survey_id>/', views.prediction_results_view, name='prediction_results'),
+    path('feedback/<int:recommendation_id>/', views.feedback_view, name='feedback'),
+]
+```
+
+7.2 Main URLs
+-------------
+Update movie_prediction_app/urls.py:
+
+```python
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('', include('prediction.urls')),
+]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+```
+
+================================================================================
+STEP 8: TESTING AND DEPLOYMENT
+================================================================================
+
+8.1 Test the Application
+------------------------
+```bash
+# Create superuser
+python manage.py createsuperuser
+
+# Run development server
+python manage.py runserver
+
+# Access application at http://127.0.0.1:8000/
+```
+
+8.2 Test Checklist
+------------------
+✅ Survey form loads and accepts input
+✅ Predictions are generated correctly
+✅ Movie recommendations display properly
+✅ User feedback system works
+✅ Admin interface accessible
+✅ Model files load without errors
+
+8.3 Production Deployment
+-------------------------
+For production deployment:
+
+1. Update settings for production (DEBUG=False, ALLOWED_HOSTS, etc.)
+2. Use a production database (PostgreSQL recommended)
+3. Set up static file serving (WhiteNoise or CDN)
+4. Configure environment variables
+5. Use gunicorn or similar WSGI server
+6. Set up reverse proxy (nginx)
+7. Enable HTTPS
+8. Set up monitoring and logging
+
+================================================================================
+STEP 9: ENHANCEMENTS AND INTEGRATIONS
+================================================================================
+
+9.1 IMDB API Integration
+-----------------------
+To integrate with real movie data:
+
+```python
+# Install additional package
+pip install imdbpy
+
+# Example IMDB integration
+from imdb import IMDb
+
+def get_movies_from_imdb(genres, limit=50):
+    ia = IMDb()
+    movies = []
+    
+    for genre in genres:
+        # Search for movies by genre
+        results = ia.search_movie(f"{genre} movies")[:limit]
+        for movie in results:
+            movie_data = ia.get_movie(movie.movieID)
+            movies.append({
+                'title': movie_data.get('title', ''),
+                'id': movie.movieID,
+                'genre': genre,
+                'imdb_score': movie_data.get('rating'),
+                'runtime': movie_data.get('runtime', [0])[0] if movie_data.get('runtime') else None,
+            })
+    
+    return movies
+```
+
+9.2 Continuous Model Improvement
+--------------------------------
+Set up automated retraining:
+
+```python
+# Create management command: prediction/management/commands/retrain_model.py
+from django.core.management.base import BaseCommand
+from prediction.retraining_utils import ModelRetrainingSystem
+
+class Command(BaseCommand):
+    help = 'Retrain the movie dropoff prediction model'
+    
+    def handle(self, *args, **options):
+        retrainer = ModelRetrainingSystem()
+        
+        check = retrainer.schedule_retraining_check()
+        self.stdout.write(f"Retraining check: {check}")
+        
+        if check['should_retrain']:
+            result = retrainer.retrain_model()
+            if result['success']:
+                self.stdout.write(
+                    self.style.SUCCESS(f'Model retrained successfully!')
+                )
+```
+
+9.3 Analytics and Monitoring
+----------------------------
+Add analytics tracking:
+
+```python
+# In views.py
+import logging
+
+logger = logging.getLogger(__name__)
+
+def track_prediction_accuracy(recommendation, feedback):
+    """Track prediction accuracy for monitoring"""
+    predicted_dropout = recommendation.dropoff_probability > 0.5
+    actual_dropout = not feedback.completed_movie
+    
+    is_correct = predicted_dropout == actual_dropout
+    
+    logger.info(f"Prediction accuracy: {is_correct}, "
+                f"Predicted: {predicted_dropout}, "
+                f"Actual: {actual_dropout}")
+```
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Common Issues and Solutions:
+
+1. **Model Loading Error**
+   - Ensure all .pkl files are in the correct directory
+   - Check file permissions
+   - Verify scikit-learn version compatibility
+
+2. **Template Not Found**
+   - Check TEMPLATES setting in settings.py
+   - Ensure template files are in correct directories
+
+3. **Static Files Not Loading**
+   - Run `python manage.py collectstatic`
+   - Check STATIC_URL and STATIC_ROOT settings
+
+4. **Database Errors**
+   - Run migrations: `python manage.py migrate`
+   - Check database configuration
+
+5. **Import Errors**
+   - Verify all dependencies are installed
+   - Check Python path and virtual environment
+
+================================================================================
+CONCLUSION
+================================================================================
+
+This implementation guide provides a complete framework for integrating the
+Random Forest movie dropoff prediction model into a Django web application.
+
+Key Features Implemented:
+✅ User survey collection
+✅ Real-time movie dropout predictions  
+✅ Personalized movie recommendations
+✅ User feedback collection system
+✅ Continuous model improvement capability
+✅ Admin interface for monitoring
+
+Next Steps:
+1. Integrate with real movie database (IMDB API)
+2. Add user authentication and profiles
+3. Implement advanced UI/UX features
+4. Set up production monitoring
+5. Deploy to cloud platform
+
+For support or questions, refer to the Django documentation and the
+methodology_and_results_report.txt for detailed model information.
+
+================================================================================

@@ -1,0 +1,96 @@
+[
+  {
+    "question": "Do you stop watching movies because of boring/uninteresting plot?",
+    "type": "boolean",
+    "field_name": "boring_plot"
+  },
+  {
+    "question": "How many different reasons cause you to stop watching movies?",
+    "type": "integer",
+    "options": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "field_name": "total_stopping_reasons"
+  },
+  {
+    "question": "Do you often stop watching Historical movies before finishing?",
+    "type": "boolean",
+    "field_name": "stop_historical"
+  },
+  {
+    "question": "Do you enjoy watching Action movies?",
+    "type": "boolean",
+    "field_name": "enjoy_action"
+  },
+  {
+    "question": "Do you enjoy watching Romance movies?",
+    "type": "boolean",
+    "field_name": "enjoy_romance"
+  },
+  {
+    "question": "Do you pause movies when feeling bored or uninterested?",
+    "type": "boolean",
+    "field_name": "pause_when_bored"
+  },
+  {
+    "question": "Do you usually focus only on the movie (no multitasking)?",
+    "type": "boolean",
+    "field_name": "focus_only"
+  },
+  {
+    "question": "Do you discover movies through trailers?",
+    "type": "boolean",
+    "field_name": "discover_trailer"
+  },
+  {
+    "question": "Do you watch movies primarily for entertainment?",
+    "type": "boolean",
+    "field_name": "watch_for_entertainment"
+  },
+  {
+    "question": "How would you rate your patience level when watching movies?",
+    "type": "float",
+    "min_value": 0.0,
+    "max_value": 1.0,
+    "field_name": "patience_score"
+  },
+  {
+    "question": "What percentage of movies do you typically complete?",
+    "type": "float",
+    "min_value": 0.0,
+    "max_value": 1.0,
+    "field_name": "completion_ratio"
+  },
+  {
+    "question": "Select your preferred movie genres (you can select multiple):",
+    "type": "multiple_choice",
+    "options": [
+      "Action",
+      "Adventure",
+      "Animation",
+      "Biography",
+      "Comedy",
+      "Crime",
+      "Documentary",
+      "Drama",
+      "Family",
+      "Fantasy",
+      "History",
+      "Horror",
+      "Music",
+      "Mystery",
+      "Romance",
+      "Sci-Fi",
+      "Sport",
+      "Thriller",
+      "War",
+      "Western"
+    ],
+    "field_name": "preferred_genres"
+  }
+]
