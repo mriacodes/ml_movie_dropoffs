@@ -1,0 +1,207 @@
+<!-- Movies Container -->
+<div class="movies-container">
+  <div class="container">
+    <!-- Header Section -->
+    <div class="movies-header">
+      <h1 class="h2">Movie Predictions</h1>
+      <p class="text-lg">Discover how likely you are to complete these movies based on your preferences</p>
+      
+      <!-- Survey Status -->
+      <div *ngIf="!hasSurveyData()" class="survey-prompt">
+        <div class="alert">
+          <h3 class="h6">📋 Take Survey First</h3>
+          <p>Complete our survey to get personalized movie completion predictions.</p>
+          <a routerLink="/survey" class="btn btn-primary">Take Survey</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="filters-section" *ngIf="hasSurveyData()">
+      <div class="filters-container">
+        <!-- Genre Filter -->
+        <div class="filter-group">
+          <label class="filter-label">Genre:</label>
+          <select class="filter-select" 
+                  [value]="filters().genre"
+                  (change)="updateFilter('genre', $any($event.target).value)">
+            <option *ngFor="let genre of availableGenres()" [value]="genre">
+              {{ genre === 'all' ? 'All Genres' : genre }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Sort Filter -->
+        <div class="filter-group">
+          <label class="filter-label">Sort by:</label>
+          <select class="filter-select"
+                  [value]="filters().sortBy"
+                  (change)="updateFilter('sortBy', $any($event.target).value)">
+            <option value="prediction">Completion Likelihood</option>
+            <option value="title">Title</option>
+            <option value="year">Year</option>
+            <option value="rating">IMDb Rating</option>
+          </select>
+        </div>
+
+        <!-- Sort Order -->
+        <div class="filter-group">
+          <label class="filter-label">Order:</label>
+          <select class="filter-select"
+                  [value]="filters().sortOrder"
+                  (change)="updateFilter('sortOrder', $any($event.target).value)">
+            <option value="desc">High to Low</option>
+            <option value="asc">Low to High</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div *ngIf="isLoading()" class="loading-section">
+      <div class="loading-card card">
+        <div class="card-body text-center">
+          <div class="loading-spinner-large"></div>
+          <h3 class="h5">Loading Movies...</h3>
+          <p class="text-base">Analyzing your preferences and calculating predictions</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Movies Grid -->
+    <div *ngIf="!isLoading() && hasSurveyData()" class="movies-grid">
+      <div *ngFor="let movie of filteredMovies()" 
+           class="movie-card card"
+           (click)="selectMovie(movie)">
+        
+        <!-- Movie Poster -->
+        <div class="movie-poster">
+          <div class="poster-placeholder">{{ movie.posterUrl }}</div>
+          
+          <!-- Prediction Badge -->
+          <div class="prediction-badge" 
+               [class]="'prediction-' + getPredictionColor(movie.completionLikelihood || 0)">
+            {{ movie.completionLikelihood }}%
+          </div>
+        </div>
+
+        <!-- Movie Info -->
+        <div class="movie-info">
+          <h3 class="movie-title h6">{{ movie.title }}</h3>
+          <div class="movie-meta">
+            <span class="movie-year">{{ movie.year }}</span>
+            <span class="movie-rating">⭐ {{ movie.imdbRating }}</span>
+            <span class="movie-runtime">{{ movie.runtime }}min</span>
+          </div>
+          
+          <div class="movie-genres">
+            <span *ngFor="let genre of movie.genre" class="genre-tag">{{ genre }}</span>
+          </div>
+
+          <!-- Prediction Summary -->
+          <div class="prediction-summary">
+            <div class="prediction-bar">
+              <div class="prediction-fill" 
+                   [style.width.%]="movie.completionLikelihood"
+                   [class]="'fill-' + getPredictionColor(movie.completionLikelihood || 0)">
+              </div>
+            </div>
+            <p class="prediction-text text-sm" 
+               [class]="'text-' + getPredictionColor(movie.completionLikelihood || 0)">
+              {{ getPredictionText(movie.completionLikelihood || 0) }}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div *ngIf="!isLoading() && hasSurveyData() && filteredMovies().length === 0" 
+         class="empty-state">
+      <div class="empty-card card">
+        <div class="card-body text-center">
+          <div class="empty-icon">🎬</div>
+          <h3 class="h4">No Movies Found</h3>
+          <p class="text-base">Try adjusting your filters to see more movies.</p>
+          <button class="btn btn-outline" (click)="updateFilter('genre', 'all')">
+            Clear Filters
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Movie Detail Modal -->
+<div *ngIf="selectedMovie()" class="movie-modal-overlay" (click)="closeMovieDetail()">
+  <div class="movie-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2 class="h3">{{ selectedMovie()!.title }}</h2>
+      <button class="close-btn" (click)="closeMovieDetail()">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+    
+    <div class="modal-content">
+      <div class="modal-poster">
+        <div class="poster-large">{{ selectedMovie()!.posterUrl }}</div>
+      </div>
+      
+      <div class="modal-details">
+        <div class="movie-info-detailed">
+          <p class="movie-description">{{ selectedMovie()!.description }}</p>
+          
+          <div class="movie-metadata">
+            <div class="meta-item">
+              <span class="meta-label">Director:</span>
+              <span class="meta-value">{{ selectedMovie()!.director }}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Year:</span>
+              <span class="meta-value">{{ selectedMovie()!.year }}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Runtime:</span>
+              <span class="meta-value">{{ selectedMovie()!.runtime }} minutes</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">IMDb Rating:</span>
+              <span class="meta-value">⭐ {{ selectedMovie()!.imdbRating }}/10</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detailed Prediction -->
+        <div class="prediction-detailed">
+          <h3 class="h5">🎯 Your Prediction</h3>
+          
+          <div class="prediction-gauge">
+            <div class="gauge-container">
+              <div class="gauge-fill" 
+                   [style.width.%]="selectedMovie()!.completionLikelihood"
+                   [class]="'gauge-' + getPredictionColor(selectedMovie()!.completionLikelihood || 0)">
+              </div>
+            </div>
+            <div class="gauge-label">
+              <span class="gauge-percentage">{{ selectedMovie()!.completionLikelihood }}%</span>
+              <span class="gauge-text">{{ getPredictionText(selectedMovie()!.completionLikelihood || 0) }}</span>
+            </div>
+          </div>
+
+          <div class="prediction-factors">
+            <h4 class="h6">Factors Considered:</h4>
+            <ul class="factors-list">
+              <li>Your genre preferences</li>
+              <li>Movie length ({{ selectedMovie()!.runtime }} min)</li>
+              <li>Your attention span patterns</li>
+              <li>Historical viewing behavior</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
