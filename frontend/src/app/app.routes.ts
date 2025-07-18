@@ -8,5 +8,5 @@ export const routes: Routes = [
   { path: 'home', redirectTo: '', pathMatch: 'full' },
   { path: 'survey', component: SurveyComponent },
   { path: 'movies', component: MoviesComponent },
-  { path: '**', redirectTo: '' } // Wildcard route for 404 pages
+  { path: '**', redirectTo: '' } 
 ];
