@@ -1,6 +1,8 @@
 import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { PredictionService, UserSurveyData, PredictionResponse } from '../../services/prediction.service';
 
 interface SurveyQuestion {
   id: string;
@@ -24,6 +26,12 @@ export class SurveyComponent {
   currentStep = signal(0);
   responses = signal<SurveyResponse>({});
   isSubmitting = signal(false);
+  predictionResult = signal<PredictionResponse | null>(null);
+  
+  constructor(
+    private predictionService: PredictionService,
+    private router: Router
+  ) {}
   
   // Survey questions based on your ML model's feature selection
   questions: SurveyQuestion[] = [
@@ -148,18 +156,42 @@ export class SurveyComponent {
     this.isSubmitting.set(true);
     
     try {
-      // TODO: Send responses to Django backend
-      console.log('Survey responses:', this.responses());
+      // Transform survey responses to API format
+      const apiData = this.predictionService.transformSurveyToApiFormat(this.responses());
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      console.log('Sending survey data to API:', apiData);
       
-      // Navigate to results or movies page
-      alert('Survey submitted successfully! Redirecting to movie predictions...');
+      // Save user survey data to session storage for use in movies page
+      sessionStorage.setItem('userSurveyData', JSON.stringify(apiData));
+      
+      // Call real ML API
+      this.predictionService.predictDropoff(apiData).subscribe({
+        next: (response) => {
+          console.log('Prediction response:', response);
+          this.predictionResult.set(response);
+          
+          // Show success message with prediction
+          const probability = Math.round(response.prediction.dropoff_probability * 100);
+          alert(`Prediction complete! 
+            Dropoff Risk: ${response.prediction.risk_level}
+            Probability: ${probability}%
+            
+            Redirecting to view personalized movie recommendations...`);
+          
+          // Navigate to movies page with prediction data
+          this.router.navigate(['/movies'], { 
+            state: { predictionResult: response } 
+          });
+        },
+        error: (error) => {
+          console.error('API Error:', error);
+          alert('Error connecting to prediction service. Please check if the API is running on http://localhost:8000');
+        }
+      });
       
     } catch (error) {
       console.error('Error submitting survey:', error);
-      alert('Error submitting survey. Please try again.');
+      alert('Error processing survey. Please try again.');
     } finally {
       this.isSubmitting.set(false);
     }

@@ -1,20 +1,7 @@
 import { Component, signal, computed, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { CommonModule } from '@angular/common';
-
-interface Movie {
-  id: number;
-  title: string;
-  genre: string[];
-  year: number;
-  director: string;
-  runtime: number;
-  imdbRating: number;
-  posterUrl: string;
-  description: string;
-  dropoffProbability?: number;
-  completionLikelihood?: number;
-}
+import { PredictionService, Movie, MoviesResponse, UserSurveyData } from '../../services/prediction.service';
 
 interface FilterOptions {
   genre: string;
@@ -33,10 +20,12 @@ export class MoviesComponent implements OnInit {
   movies = signal<Movie[]>([]);
   filteredMovies = signal<Movie[]>([]);
   selectedMovie = signal<Movie | null>(null);
+  errorMessage = signal<string | null>(null);
+  userSurveyData = signal<UserSurveyData | null>(null);
   
   filters = signal<FilterOptions>({
     genre: 'all',
-    sortBy: 'prediction',
+    sortBy: 'rating',
     sortOrder: 'desc'
   });
 
@@ -45,10 +34,21 @@ export class MoviesComponent implements OnInit {
     'Romance', 'Sci-Fi', 'Thriller', 'Animation', 'Documentary'
   ]);
 
+  constructor(private predictionService: PredictionService) {}
+
   // Computed properties
   hasSurveyData = computed(() => {
-    // TODO: Check if user has completed survey
-    return true; // Simulated for now
+    // Check if user has completed survey data in session storage
+    const surveyData = sessionStorage.getItem('userSurveyData');
+    if (surveyData) {
+      try {
+        this.userSurveyData.set(JSON.parse(surveyData));
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
   });
 
   ngOnInit() {
@@ -57,99 +57,108 @@ export class MoviesComponent implements OnInit {
 
   async loadMovies() {
     this.isLoading.set(true);
+    this.errorMessage.set(null);
     
     try {
-      // TODO: Replace with actual API call to Django backend
-      // For now, we'll simulate movie data with predictions
-      const simulatedMovies: Movie[] = [
-        {
-          id: 1,
-          title: "The Matrix",
-          genre: ["Action", "Sci-Fi"],
-          year: 1999,
-          director: "The Wachowskis",
-          runtime: 136,
-          imdbRating: 8.7,
-          posterUrl: "🎬",
-          description: "A computer hacker learns from mysterious rebels about the true nature of his reality.",
-          completionLikelihood: 92
+      // Get movies from the real API
+      this.predictionService.getMovies(100, this.filters().genre, 6.0).subscribe({
+        next: (response: MoviesResponse) => {
+          console.log('Loaded movies from API:', response);
+          this.movies.set(response.movies);
+          
+          // If user has survey data, get predictions for movies
+          if (this.hasSurveyData() && this.userSurveyData()) {
+            this.loadMoviePredictions();
+          } else {
+            this.applyFilters();
+          }
+          
+          this.isLoading.set(false);
         },
-        {
-          id: 2,
-          title: "Inception",
-          genre: ["Action", "Sci-Fi", "Thriller"],
-          year: 2010,
-          director: "Christopher Nolan",
-          runtime: 148,
-          imdbRating: 8.8,
-          posterUrl: "🎭",
-          description: "A thief who steals corporate secrets through dream-sharing technology.",
-          completionLikelihood: 78
-        },
-        {
-          id: 3,
-          title: "The Notebook",
-          genre: ["Romance", "Drama"],
-          year: 2004,
-          director: "Nick Cassavetes",
-          runtime: 123,
-          imdbRating: 7.8,
-          posterUrl: "💕",
-          description: "A poor yet passionate young man falls in love with a rich young woman.",
-          completionLikelihood: 45
-        },
-        {
-          id: 4,
-          title: "Avengers: Endgame",
-          genre: ["Action", "Adventure", "Drama"],
-          year: 2019,
-          director: "Anthony Russo",
-          runtime: 181,
-          imdbRating: 8.4,
-          posterUrl: "🦸",
-          description: "The Avengers assemble once more to reverse Thanos' actions.",
-          completionLikelihood: 88
-        },
-        {
-          id: 5,
-          title: "Parasite",
-          genre: ["Comedy", "Drama", "Thriller"],
-          year: 2019,
-          director: "Bong Joon-ho",
-          runtime: 132,
-          imdbRating: 8.6,
-          posterUrl: "🏠",
-          description: "A poor family schemes to become employed by a wealthy family.",
-          completionLikelihood: 73
-        },
-        {
-          id: 6,
-          title: "The Conjuring",
-          genre: ["Horror", "Mystery", "Thriller"],
-          year: 2013,
-          director: "James Wan",
-          runtime: 112,
-          imdbRating: 7.5,
-          posterUrl: "👻",
-          description: "Paranormal investigators help a family terrorized by a dark presence.",
-          completionLikelihood: 35
+        error: (error) => {
+          console.error('Error loading movies:', error);
+          this.errorMessage.set('Failed to load movies from API. Using sample data.');
+          this.loadFallbackMovies();
+          this.isLoading.set(false);
         }
-      ];
-
-      // Add dropoff probability (inverse of completion likelihood)
-      const moviesWithPredictions = simulatedMovies.map(movie => ({
-        ...movie,
-        dropoffProbability: 100 - (movie.completionLikelihood || 50)
-      }));
-
-      this.movies.set(moviesWithPredictions);
-      this.applyFilters();
+      });
       
     } catch (error) {
       console.error('Error loading movies:', error);
-    } finally {
+      this.errorMessage.set('Failed to load movies. Using sample data.');
+      this.loadFallbackMovies();
       this.isLoading.set(false);
     }
+  }
+
+  loadFallbackMovies() {
+    // Fallback static data for when API is not available
+    const fallbackMovies: Movie[] = [
+      {
+        id: 1,
+        title: "The Matrix",
+        genre: ["Action", "Sci-Fi"],
+        year: 1999,
+        director: "The Wachowskis",
+        runtime: 136,
+        imdbRating: 8.7,
+        posterUrl: "🎬",
+        description: "A computer hacker learns from mysterious rebels about the true nature of his reality.",
+        mainGenre: "Action",
+        contentRating: "R",
+        starCast: "Keanu Reeves, Laurence Fishburne",
+        completionLikelihood: 92,
+        dropoffProbability: 8
+      },
+      {
+        id: 2,
+        title: "Inception",
+        genre: ["Action", "Sci-Fi", "Thriller"],
+        year: 2010,
+        director: "Christopher Nolan",
+        runtime: 148,
+        imdbRating: 8.8,
+        posterUrl: "🎭",
+        description: "A thief who steals corporate secrets through dream-sharing technology.",
+        mainGenre: "Sci-Fi",
+        contentRating: "PG-13",
+        starCast: "Leonardo DiCaprio, Marion Cotillard",
+        completionLikelihood: 78,
+        dropoffProbability: 22
+      }
+    ];
+    
+    this.movies.set(fallbackMovies);
+    this.applyFilters();
+  }
+
+  async loadMoviePredictions() {
+    const userData = this.userSurveyData();
+    if (!userData) return;
+
+    const moviesWithPredictions = await Promise.all(
+      this.movies().map(async (movie) => {
+        try {
+          const prediction = await this.predictionService.predictMovieCompletion(movie.id, userData).toPromise();
+          return {
+            ...movie,
+            completionLikelihood: Math.round((prediction?.completion_likelihood || 0.5) * 100),
+            dropoffProbability: Math.round((prediction?.dropoff_probability || 0.5) * 100)
+          };
+        } catch (error) {
+          console.error(`Error predicting for movie ${movie.title}:`, error);
+          // Return movie with default prediction
+          return {
+            ...movie,
+            completionLikelihood: 50,
+            dropoffProbability: 50
+          };
+        }
+      })
+    );
+
+    this.movies.set(moviesWithPredictions);
+    this.applyFilters();
   }
 
   applyFilters() {
@@ -159,7 +168,7 @@ export class MoviesComponent implements OnInit {
     // Filter by genre
     if (currentFilters.genre !== 'all') {
       filtered = filtered.filter(movie => 
-        movie.genre.includes(currentFilters.genre)
+        movie.genre.some(g => g.toLowerCase().includes(currentFilters.genre.toLowerCase()))
       );
     }
 
@@ -172,10 +181,10 @@ export class MoviesComponent implements OnInit {
           comparison = a.title.localeCompare(b.title);
           break;
         case 'year':
-          comparison = a.year - b.year;
+          comparison = (a.year || 0) - (b.year || 0);
           break;
         case 'rating':
-          comparison = a.imdbRating - b.imdbRating;
+          comparison = (a.imdbRating || 0) - (b.imdbRating || 0);
           break;
         case 'prediction':
           comparison = (a.completionLikelihood || 0) - (b.completionLikelihood || 0);
@@ -193,34 +202,60 @@ export class MoviesComponent implements OnInit {
       ...filters,
       [key]: value
     }));
-    this.applyFilters();
+    
+    // If genre filter changed, reload movies to get fresh data
+    if (key === 'genre') {
+      this.loadMovies();
+    } else {
+      this.applyFilters();
+    }
   }
 
   selectMovie(movie: Movie) {
     this.selectedMovie.set(movie);
   }
 
-  closeMovieDetail() {
+  closeMovieDetails() {
     this.selectedMovie.set(null);
+  }
+
+  getCompletionColor(likelihood: number | undefined): string {
+    if (!likelihood) return 'var(--color-gray-400)';
+    
+    if (likelihood >= 80) return 'var(--color-success)';
+    if (likelihood >= 60) return 'var(--color-warning)';
+    if (likelihood >= 40) return 'var(--color-primary-medium)';
+    return 'var(--color-danger)';
+  }
+
+  getRiskLevel(likelihood: number | undefined): string {
+    if (!likelihood) return 'Unknown';
+    
+    if (likelihood >= 80) return 'Very High';
+    if (likelihood >= 60) return 'High'; 
+    if (likelihood >= 40) return 'Medium';
+    return 'Low';
+  }
+
+  refreshMovies() {
+    this.loadMovies();
   }
 
   getPredictionColor(likelihood: number): string {
     if (likelihood >= 80) return 'success';
-    if (likelihood >= 60) return 'warning';
-    if (likelihood >= 40) return 'info';
-    return 'error';
+    if (likelihood >= 60) return 'warning'; 
+    if (likelihood >= 40) return 'primary';
+    return 'danger';
   }
 
   getPredictionText(likelihood: number): string {
-    if (likelihood >= 80) return 'Very Likely to Complete';
-    if (likelihood >= 60) return 'Likely to Complete';
-    if (likelihood >= 40) return 'Might Drop Off';
-    return 'Likely to Drop Off';
+    if (likelihood >= 80) return 'Very Likely';
+    if (likelihood >= 60) return 'Likely';
+    if (likelihood >= 40) return 'Possible';
+    return 'Unlikely';
   }
 
-  async getPrediction(movieId: number) {
-    // TODO: Call Django API to get prediction for specific movie
-    // This would use the user's survey responses + movie data
-    console.log(`Getting prediction for movie ${movieId}`);
+  closeMovieDetail() {
+    this.selectedMovie.set(null);
   }
 }

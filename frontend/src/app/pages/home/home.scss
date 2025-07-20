@@ -33,6 +33,74 @@
   align-items: center;
 }
 
+// API Status Indicator
+.api-status-container {
+  margin-bottom: var(--spacing-md);
+}
+
+.api-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  
+  .status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    
+    &::before {
+      content: '';
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+    }
+  }
+  
+  .model-info {
+    color: var(--color-gray-500);
+    font-weight: normal;
+    font-size: 0.8rem;
+  }
+  
+  &.status-checking {
+    background-color: var(--color-gray-100);
+    color: var(--color-gray-600);
+    
+    .status-indicator::before {
+      background-color: var(--color-gray-400);
+      animation: pulse 2s infinite;
+    }
+  }
+  
+  &.status-connected {
+    background-color: #dcfce7;
+    color: #166534;
+    
+    .status-indicator::before {
+      background-color: #16a34a;
+    }
+  }
+  
+  &.status-disconnected {
+    background-color: #fef2f2;
+    color: #991b1b;
+    
+    .status-indicator::before {
+      background-color: #dc2626;
+    }
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 .btn-lg {
   padding: var(--spacing-md) var(--spacing-xl);
   font-size: 1rem;
