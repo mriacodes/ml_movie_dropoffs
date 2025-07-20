@@ -1,12 +1,15 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from config import config
+import os
+import json
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, List
-import json
 import joblib
-import os
+import warnings
 from datetime import datetime
+from typing import Dict, Any, List
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 app = FastAPI(
     title="Movie Dropoff Prediction API",
@@ -14,7 +17,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS configuration for Angular frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:4200", "http://localhost:3000"],
@@ -23,7 +25,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ===== REAL ML MODEL PREDICTOR =====
 class MovieDropoffPredictor:
     def __init__(self):
         self.model = None
@@ -32,53 +33,94 @@ class MovieDropoffPredictor:
         self.is_loaded = False
         self.fallback_mode = False
         
-        # Try to load the real model
         self._load_real_model()
     
     def _load_real_model(self):
-        """Load final trained model"""
+        """Load final trained model using config paths"""
         try:
-            # Fix: Updated paths to match your actual structure
-            model_path = "movie_dropoff_model_optimized.pkl"  # Model is in same folder
-            info_path = "../django_models/model_info_optimized.json"  # Check if this exists
+            import sklearn
+            print(f"Current scikit-learn version: {sklearn.__version__}")
             
-            if os.path.exists(model_path):
-                # Load the trained model
-                self.model = joblib.load(model_path)
-                print("✅ Loaded optimized ML model successfully!")
+            # Use absolute path resolution
+            current_file_dir = os.path.dirname(os.path.abspath(__file__))
+            model_path = os.path.join(current_file_dir, "..", "django_models", "movie_dropoff_model_optimized.pkl")
+            model_path = os.path.normpath(model_path)
+            
+            print(f"Trying to load model from: {model_path}")
+            print(f"Model file exists: {os.path.exists(model_path)}")
+            print(f"Current working directory: {os.getcwd()}")
+            
+            if not os.path.exists(model_path):
+                print("Model not found! Directory structure:")
+                django_models_dir = os.path.join(current_file_dir, "..", "django_models")
+                django_models_dir = os.path.normpath(django_models_dir)
                 
-                # Load model info if available
-                if os.path.exists(info_path):
-                    with open(info_path, 'r') as f:
-                        self.model_info = json.load(f)
-                    self.feature_names = self.model_info.get('features', [])
-                    print(f"✅ Loaded {len(self.feature_names)} features from model info")
+                print(f"Looking in: {django_models_dir}")
+                if os.path.exists(django_models_dir):
+                    files = os.listdir(django_models_dir)
+                    print(f"Files found: {files}")
+                    
+                    # Look for any .pkl files
+                    pkl_files = [f for f in files if f.endswith('.pkl')]
+                    if pkl_files:
+                        print(f"Found pickle files: {pkl_files}")
+                        # Try the first pickle file found
+                        model_path = os.path.join(django_models_dir, pkl_files[0])
+                        print(f"Trying alternate model: {model_path}")
+                    else:
+                        raise FileNotFoundError("No pickle files found in django_models directory")
                 else:
-                    print("⚠ Model info not found, using basic feature set")
+                    print(f"django_models directory doesn't exist: {django_models_dir}")
+                    raise FileNotFoundError(f"Directory not found: {django_models_dir}")
+            
+            # Suppress version warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore")
+                
+                print("Attempting to load model...")
+                self.model = joblib.load(model_path)
+                print("Model loaded successfully!")
+                
+                # Get model info
+                print(f"Model type: {type(self.model)}")
+                print(f"Model classes: {getattr(self.model, 'classes_', 'Not available')}")
+                
+                # Try to get feature names
+                if hasattr(self.model, 'feature_names_in_'):
+                    self.feature_names = list(self.model.feature_names_in_)
+                    print(f"Features from model: {len(self.feature_names)}")
+                else:
+                    print("Model doesn't have feature_names_in_, using fallback features")
                     self.feature_names = self._get_basic_features()
                 
-                self.is_loaded = True
-                self.fallback_mode = False
-                
-                print(f"🎯 Model Performance:")
-                if 'performance_metrics' in self.model_info:
-                    metrics = self.model_info['performance_metrics']
-                    print(f"  - F1 Score: {metrics.get('f1_score', 'N/A')}")
-                    print(f"  - Accuracy: {metrics.get('accuracy', 'N/A')}")
-                    print(f"  - Precision: {metrics.get('precision', 'N/A')}")
-                    print(f"  - Recall: {metrics.get('recall', 'N/A')}")
-                
-            else:
-                print(f"❌ Model file not found at: {model_path}")
-                self._load_fallback_model()
-                
+                # Test prediction
+                test_data = pd.DataFrame([[0.5] * len(self.feature_names)], columns=self.feature_names)
+                try:
+                    if hasattr(self.model, 'predict_proba'):
+                        test_pred = self.model.predict_proba(test_data)
+                        print(f"Test prediction successful: {test_pred.shape}")
+                    else:
+                        test_pred = self.model.predict(test_data)
+                        print(f"Test prediction successful: {test_pred}")
+                    
+                    self.is_loaded = True
+                    self.fallback_mode = False
+                    print("SUCCESS: Real ML model is loaded and functional!")
+                    return
+                    
+                except Exception as pred_error:
+                    print(f"Model prediction test failed: {pred_error}")
+                    print("Model loaded but can't make predictions, using fallback")
+                    raise pred_error
+        
         except Exception as e:
-            print(f"❌ Error loading real model: {e}")
+            print(f"FAILED to load real model: {e}")
+            print("Falling back to rule-based model")
             self._load_fallback_model()
     
     def _load_fallback_model(self):
         """Load fallback rule-based model"""
-        print("🔄 Loading fallback rule-based model...")
+        print("Loading fallback rule-based model...")
         self.fallback_mode = True
         self.is_loaded = True
         self.feature_names = self._get_basic_features()
@@ -87,38 +129,32 @@ class MovieDropoffPredictor:
             "version": "1.0.0",
             "type": "fallback"
         }
-    
+
     def _get_basic_features(self):
-        """Basic feature set for fallback"""
+        """Get basic feature set for fallback"""
         return [
-            "boring_plot", "total_stopping_reasons", "stop_historical", 
-            "enjoy_action", "genre_completion_ratio", "patience_score",
-            "attention_span_score", "total_multitasking_behaviors",
-            "social_influence_score", "is_weekend"
+            'boring_plot', 'total_stopping_reasons', 'patience_score',
+            'attention_span_score', 'genre_completion_ratio',
+            'stop_historical', 'stop_action', 'stop_comedy',
+            'pause_when_bored', 'viewer_age_group'
         ]
     
     def _prepare_features(self, user_data: dict) -> pd.DataFrame:
         """Prepare features for model prediction"""
         if self.fallback_mode:
-            # For fallback, just use the basic features
             feature_dict = {}
             for feature in self.feature_names:
                 feature_dict[feature] = user_data.get(feature, 0)
             return pd.DataFrame([feature_dict])
         
         else:
-            # For real model, prepare all features
-            # Create feature vector with all expected features
             feature_dict = {}
             
-            # Fill in provided features
             for feature in self.feature_names:
                 feature_dict[feature] = user_data.get(feature, 0)
             
-            # Create DataFrame with proper feature order
             feature_df = pd.DataFrame([feature_dict])
             
-            # Ensure all columns are present and in correct order
             feature_df = feature_df.reindex(columns=self.feature_names, fill_value=0)
             
             return feature_df
@@ -132,18 +168,15 @@ class MovieDropoffPredictor:
                 return self._real_model_prediction(user_data)
                 
         except Exception as e:
-            print(f"⚠ Prediction error: {e}, falling back to rule-based")
+            print(f"Prediction error: {e}, falling back to rule-based")
             return self._fallback_prediction(user_data)
     
     def _real_model_prediction(self, user_data: dict):
         """Use the real trained model for prediction"""
-        # Prepare features
         feature_df = self._prepare_features(user_data)
         
-        # Get prediction probability
-        probability = self.model.predict_proba(feature_df)[0][1]  # Probability of dropout
+        probability = self.model.predict_proba(feature_df)[0][1]  
         
-        # Determine risk level and recommendations
         risk_level, user_segment, recommendations = self._analyze_prediction(probability, user_data)
         
         return probability, risk_level, recommendations, user_segment
@@ -152,7 +185,6 @@ class MovieDropoffPredictor:
         """Rule-based prediction fallback"""
         risk_score = 0.0
         
-        # Analyze risk factors
         if user_data.get("boring_plot", 0) == 1:
             risk_score += 0.25
         if user_data.get("total_stopping_reasons", 0) > 3:
@@ -168,10 +200,8 @@ class MovieDropoffPredictor:
         if user_data.get("total_multitasking_behaviors", 0) > 2:
             risk_score += 0.05
         
-        # Convert to probability
         probability = min(max(risk_score, 0.05), 0.95)
         
-        # Determine risk level and recommendations
         risk_level, user_segment, recommendations = self._analyze_prediction(probability, user_data)
         
         return probability, risk_level, recommendations, user_segment
@@ -207,10 +237,8 @@ class MovieDropoffPredictor:
         
         return risk_level, user_segment, recommendations
 
-# Initialize predictor
 predictor = MovieDropoffPredictor()
 
-# ===== UTILITY FUNCTIONS =====
 def validate_user_data(data: dict) -> tuple[bool, list]:
     """Validate input data"""
     errors = []
@@ -220,7 +248,6 @@ def validate_user_data(data: dict) -> tuple[bool, list]:
         if field not in data:
             errors.append(f"Missing required field: {field}")
     
-    # Validate data types and ranges
     for key, value in data.items():
         if key in ["boring_plot", "stop_historical", "enjoy_action", "is_weekend"]:
             if not isinstance(value, int) or value not in [0, 1]:
@@ -245,15 +272,14 @@ def format_prediction_response(probability: float, risk_level: str,
         "timestamp": datetime.now().isoformat()
     }
 
-# ===== API ENDPOINTS =====
 @app.on_event("startup")
 async def startup_event():
     """Initialize the API on startup"""
-    print("🎬 Movie Dropoff Prediction API Started")
-    print(f"✅ Predictor loaded: {predictor.is_loaded}")
-    print(f"🤖 Model type: {'Real ML Model' if not predictor.fallback_mode else 'Fallback Rule-based'}")
-    print(f"📊 Features available: {len(predictor.feature_names)}")
-    print("🚀 API ready for predictions!")
+    print("Movie Dropoff Prediction API Started")
+    print(f"Predictor loaded: {predictor.is_loaded}")
+    print(f"Model type: {'Real ML Model' if not predictor.fallback_mode else 'Fallback Rule-based'}")
+    print(f"Features available: {len(predictor.feature_names)}")
+    print("API ready for predictions!")
 
 @app.get("/")
 async def root():
@@ -294,15 +320,12 @@ async def predict_dropoff(user_data: Dict[str, Any]):
     Predict movie dropoff probability for a user using final trained model
     """
     try:
-        # Validate input
         is_valid, errors = validate_user_data(user_data)
         if not is_valid:
             raise HTTPException(status_code=400, detail={"errors": errors})
         
-        # Get prediction
         probability, risk_level, recommendations, user_segment = predictor.predict_dropoff(user_data)
         
-        # Format response
         response = format_prediction_response(probability, risk_level, recommendations, user_segment)
         
         return {
@@ -353,7 +376,7 @@ async def get_model_info():
     return {
         "model_info": predictor.model_info,
         "feature_count": len(predictor.feature_names),
-        "features": predictor.feature_names[:20],  # Show first 20 features
+        "features": predictor.feature_names[:20],
         "total_features": len(predictor.feature_names),
         "model_type": "ML Model" if not predictor.fallback_mode else "Rule-based Fallback",
         "status": "loaded" if predictor.is_loaded else "not_loaded",
@@ -371,55 +394,62 @@ async def get_movies(
 ):
     """Get movie data from cleaned IMDB dataset"""
     try:
-        # Load the cleaned IMDB data
-        movies_path = "../movies_seeding/cleaned_imdb_data.csv"
-        
-        if not os.path.exists(movies_path):
-            # Try alternative path
-            movies_path = "../data_preprocessing/imdb_data.csv"
+        movies_path = "cleaned_imdb_data.csv"
         
         if not os.path.exists(movies_path):
             raise HTTPException(status_code=404, detail="Movie data file not found")
         
-        # Load and process movie data
         df = pd.read_csv(movies_path)
+        print(f"Loaded {len(df)} movies from dataset")
         
-        # Apply filters
+        print("Available columns:", list(df.columns))
+        
         if genre and genre.lower() != 'all':
-            df = df[df['genres'].str.contains(genre, case=False, na=False)]
+            if 'genres' in df.columns:
+                df = df[df['genres'].str.contains(genre, case=False, na=False)]
+            elif 'genre' in df.columns:
+                df = df[df['genre'].str.contains(genre, case=False, na=False)]
         
         if min_rating:
-            df = df[df['imdb_score'] >= min_rating]
+           
+            if 'imdb_score' in df.columns:
+                df = df[df['imdb_score'] >= min_rating]
         
         if year_from:
-            df = df[df['title_year'] >= year_from]
+            
+            if 'release_year' in df.columns:
+                df = df[df['release_year'] >= year_from]
+            elif 'title_year' in df.columns:
+                df = df[df['title_year'] >= year_from]
         
         if year_to:
-            df = df[df['title_year'] <= year_to]
+            if 'release_year' in df.columns:
+                df = df[df['release_year'] <= year_to]
+            elif 'title_year' in df.columns:
+                df = df[df['title_year'] <= year_to]
         
-        # Sort by IMDB score and limit results
-        df = df.sort_values('imdb_score', ascending=False).head(limit)
+        # Sort and limit results
+        if 'imdb_score' in df.columns:
+            df = df.sort_values('imdb_score', ascending=False).head(limit)
+        else:
+            df = df.head(limit)
         
-        # Convert to API format
+        # Convert to API format based on your CSV structure
         movies = []
-        for _, row in df.iterrows():
-            # Parse genres
-            genres_str = str(row.get('genres', ''))
-            genres = [g.strip() for g in genres_str.split(',') if g.strip()]
-            
+        for idx, row in df.iterrows():
             movie = {
-                "id": len(movies) + 1,
-                "title": str(row.get('movie_title', 'Unknown')),
-                "genre": genres,
-                "year": int(row.get('title_year', 0)) if pd.notna(row.get('title_year')) else None,
-                "director": str(row.get('director_name', 'Unknown')),
-                "runtime": int(row.get('duration', 0)) if pd.notna(row.get('duration')) else None,
-                "imdbRating": float(row.get('imdb_score', 0)) if pd.notna(row.get('imdb_score')) else None,
-                "posterUrl": "🎬",  # Placeholder for now
-                "description": f"A {row.get('main_genre', 'movie')} film from {row.get('title_year', 'unknown year')}",
-                "mainGenre": str(row.get('main_genre', 'Unknown')),
-                "contentRating": str(row.get('content_rating', 'Not Rated')) if pd.notna(row.get('content_rating')) else 'Not Rated',
-                "starCast": str(row.get('star_cast', 'Unknown')) if pd.notna(row.get('star_cast')) else 'Unknown'
+                "id": idx,
+                "title": str(row.iloc[0]),
+                "year": int(row.iloc[2]) if pd.notna(row.iloc[2]) else 2000,
+                "imdbRating": float(row.iloc[1]) if pd.notna(row.iloc[1]) else 5.0,
+                "genre": str(row.iloc[4]).split(',') if pd.notna(row.iloc[4]) else ["Unknown"],
+                "director": str(row.iloc[5]) if pd.notna(row.iloc[5]) else "Unknown",
+                "runtime": int(row.iloc[8]) if pd.notna(row.iloc[8]) and str(row.iloc[8]).replace('.','').isdigit() else 120,
+                "contentRating": str(row.iloc[3]) if pd.notna(row.iloc[3]) else "Not Rated",
+                "starCast": str(row.iloc[6]) if pd.notna(row.iloc[6]) else "Unknown Cast",
+                "posterUrl": "movie-poster",
+                "description": f"A {str(row.iloc[4]).split(',')[0] if pd.notna(row.iloc[4]) else 'movie'} film",
+                "mainGenre": str(row.iloc[4]).split(',')[0] if pd.notna(row.iloc[4]) else "Unknown"
             }
             movies.append(movie)
         
@@ -443,12 +473,11 @@ async def get_movies(
 async def predict_movie_completion(movie_id: int, user_data: dict):
     """Predict completion likelihood for a specific movie"""
     try:
-        # Use the existing predictor method
         probability, risk_level, recommendations, user_segment = predictor.predict_dropoff(user_data)
         
         return {
             "movie_id": movie_id,
-            "completion_likelihood": 1.0 - probability,  # Convert dropoff to completion
+            "completion_likelihood": 1.0 - probability,
             "dropoff_probability": probability,
             "risk_level": risk_level,
             "recommendations": recommendations,
@@ -462,7 +491,7 @@ async def predict_movie_completion(movie_id: int, user_data: dict):
 
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 Starting Movie Dropoff Prediction API with Real ML Model...")
-    print("📡 API will be available at: http://localhost:8000")
-    print("📖 Documentation at: http://localhost:8000/docs")
+    print("Starting Movie Dropoff Prediction API with Real ML Model...")
+    print("API will be available at: http://localhost:8000")
+    print("Documentation at: http://localhost:8000/docs")
     uvicorn.run(app, host="0.0.0.0", port=8000)

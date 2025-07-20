@@ -19,11 +19,10 @@ class APIConfig:
     ALLOWED_ORIGINS = [
         "http://localhost:4200",  # Angular development server
         "http://localhost:3000",  # Alternative frontend port
-        "https://yourdomain.com"  # Production domain (update this)
     ]
     
     # Model Settings
-    MODEL_PATH = "../django_models/movie_dropoff_model.pkl"
+    MODEL_PATH = "../django_models/movie_dropoff_model_optimized.pkl"
     SMOTE_TRANSFORMER_PATH = "../django_models/smote_transformer.pkl"
     MODEL_INFO_PATH = "../django_models/model_info.json"
     
