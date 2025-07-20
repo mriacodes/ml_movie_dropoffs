@@ -1,0 +1,78 @@
+<div class="movie-dashboard">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <h1 class="logo">Blitch <br /> CINEMA</h1>
+    <nav class="nav">
+      <a class="nav-link" href="#">Dashboard</a>
+      <a class="nav-link active" href="#">Movies</a>
+      <a class="nav-link" href="#">Showtime</a>
+      <a class="nav-link" href="#">Theatre</a>
+      <a class="nav-link" href="#">Bookings</a>
+      <a class="nav-link" href="#">Customers</a>
+      <a class="nav-link" href="#">Finance</a>
+      <a class="nav-link" href="#">Content</a>
+      <a class="nav-link" href="#">Analytics</a>
+      <a class="nav-link" href="#">Settings</a>
+      <a class="nav-link" href="#">Help & Support</a>
+    </nav>
+    <div class="user-info">
+      <span>Maria Parker</span>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <div class="header">
+      <h2>Movies</h2>
+      <div class="header-controls">
+        <input type="text" placeholder="Search" class="search-input" />
+        <button class="new-movie-btn">+ New movie</button>
+      </div>
+    </div>
+
+    <!-- Month Filter -->
+    <div class="month-filter">
+      <button class="month active">Aug</button>
+      <button class="month">July</button>
+      <button class="month">June</button>
+      <button class="month">May</button>
+      <button class="month">Apr</button>
+      <button class="month">Mar</button>
+      <button class="month">Feb</button>
+      <button class="month">Jan</button>
+      <select class="year-filter">
+        <option>This Year</option>
+      </select>
+    </div>
+
+    <!-- Movie Cards -->
+    <div class="movie-grid">
+  <div
+    class="movie-card"
+    *ngFor="let movie of movies"
+    (click)="selectMovie(movie)"
+  >
+    <img [src]="'https://image.tmdb.org/t/p/w500' + movie.poster_path" alt="Movie Poster" />
+    <h3>{{ movie.title }}</h3>
+    <p>Release Date: {{ movie.release_date }}</p>
+    <p>Language: {{ movie.original_language | uppercase }}</p>
+  </div>
+</div>
+
+
+    <!-- Popup Modal -->
+    <div class="modal" *ngIf="selectedMovie">
+      <div class="modal-content">
+        <button class="close-btn" (click)="closeModal()">&times;</button>
+        <img [src]="selectedMovie.image" alt="Movie Image" class="modal-img" />
+        <h3>{{ selectedMovie.title }}</h3>
+        <p><strong>Release Date:</strong> {{ selectedMovie.date }}</p>
+        <p><strong>Duration:</strong> {{ selectedMovie.duration }}</p>
+        <p><strong>Language:</strong> {{ selectedMovie.language }}</p>
+        <div class="tags">
+          <span class="tag" *ngFor="let tag of selectedMovie.tags">{{ tag }}</span>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
