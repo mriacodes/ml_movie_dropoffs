@@ -62,6 +62,18 @@
                 </button>
               </div>
             </div>
+
+            <!-- Multiple Choice Questions (for scores/ratios) -->
+            <div *ngIf="currentQuestion.type === 'multiple_choice'" class="answer-options">
+              <div class="choice-options">
+                <button *ngFor="let option of currentQuestion.options" 
+                        class="choice-option"
+                        [class.selected]="getResponseValue(currentQuestion.fieldName) === option"
+                        (click)="setResponse(currentQuestion.fieldName, option)">
+                  {{ option }}
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- Navigation Buttons -->

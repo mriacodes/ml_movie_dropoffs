@@ -61,9 +61,7 @@ export class MoviesComponent implements OnInit {
     
     try {
       // Get movies from the real API
-      const selectedGenre = this.filters().genre === 'all' ? undefined : this.filters().genre;
-      
-      this.predictionService.getMovies(100, selectedGenre, 6.0).subscribe({
+      this.predictionService.getMovies(100, this.filters().genre, 6.0).subscribe({
         next: (response: MoviesResponse) => {
           console.log('Loaded movies from API:', response);
           this.movies.set(response.movies);
@@ -138,8 +136,6 @@ export class MoviesComponent implements OnInit {
     const userData = this.userSurveyData();
     if (!userData) return;
 
-    console.log('Loading movie predictions with user data:', userData);
-
     const moviesWithPredictions = await Promise.all(
       this.movies().map(async (movie) => {
         try {
@@ -151,12 +147,11 @@ export class MoviesComponent implements OnInit {
           };
         } catch (error) {
           console.error(`Error predicting for movie ${movie.title}:`, error);
-          // Return movie with default prediction based on user's general behavior
-          const defaultCompletion = this.estimateDefaultCompletion(userData);
+          // Return movie with default prediction
           return {
             ...movie,
-            completionLikelihood: defaultCompletion,
-            dropoffProbability: 100 - defaultCompletion
+            completionLikelihood: 50,
+            dropoffProbability: 50
           };
         }
       })
@@ -164,29 +159,6 @@ export class MoviesComponent implements OnInit {
 
     this.movies.set(moviesWithPredictions);
     this.applyFilters();
-  }
-
-  private estimateDefaultCompletion(userData: UserSurveyData): number {
-    // Simple heuristic based on user survey data
-    let score = 50; // Start with 50% baseline
-    
-    // Check genre completion ratio
-    if (userData.genre_completion_ratio) {
-      score = Math.round(userData.genre_completion_ratio * 100);
-    }
-    
-    // Adjust based on patience score
-    if (userData.patience_score) {
-      score += (userData.patience_score - 0.5) * 20;
-    }
-    
-    // Adjust based on attention span
-    if (userData.attention_span_score) {
-      score += (userData.attention_span_score - 0.5) * 20;
-    }
-    
-    // Clamp between 20-90%
-    return Math.max(20, Math.min(90, Math.round(score)));
   }
 
   applyFilters() {
@@ -267,23 +239,5 @@ export class MoviesComponent implements OnInit {
 
   refreshMovies() {
     this.loadMovies();
-  }
-
-  getPredictionColor(likelihood: number): string {
-    if (likelihood >= 80) return 'success';
-    if (likelihood >= 60) return 'warning'; 
-    if (likelihood >= 40) return 'primary';
-    return 'danger';
-  }
-
-  getPredictionText(likelihood: number): string {
-    if (likelihood >= 80) return 'Very Likely';
-    if (likelihood >= 60) return 'Likely';
-    if (likelihood >= 40) return 'Possible';
-    return 'Unlikely';
-  }
-
-  closeMovieDetail() {
-    this.selectedMovie.set(null);
   }
 }

@@ -36,11 +36,11 @@ class MovieDropoffPredictor:
         self._load_real_model()
     
     def _load_real_model(self):
-        """Load Marivic's trained model"""
+        """Load final trained model"""
         try:
-            # Path to the optimized model
-            model_path = "../django_models/movie_dropoff_model_optimized.pkl"
-            info_path = "../django_models/model_info.json"
+            # Fix: Updated paths to match your actual structure
+            model_path = "movie_dropoff_model_optimized.pkl"  # Model is in same folder
+            info_path = "../django_models/model_info_optimized.json"  # Check if this exists
             
             if os.path.exists(model_path):
                 # Load the trained model
@@ -291,7 +291,7 @@ async def health_check():
 @app.post("/predict")
 async def predict_dropoff(user_data: Dict[str, Any]):
     """
-    Predict movie dropoff probability for a user using Marivic's trained model
+    Predict movie dropoff probability for a user using final trained model
     """
     try:
         # Validate input
