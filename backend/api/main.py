@@ -361,6 +361,105 @@ async def get_model_info():
         "timestamp": datetime.now().isoformat()
     }
 
+@app.get("/movies")
+async def get_movies(
+    limit: int = 50, 
+    genre: str = None, 
+    min_rating: float = None,
+    year_from: int = None,
+    year_to: int = None
+):
+    """Get movie data from cleaned IMDB dataset"""
+    try:
+        # Load the cleaned IMDB data
+        movies_path = "../movies_seeding/cleaned_imdb_data.csv"
+        
+        if not os.path.exists(movies_path):
+            # Try alternative path
+            movies_path = "../data_preprocessing/imdb_data.csv"
+        
+        if not os.path.exists(movies_path):
+            raise HTTPException(status_code=404, detail="Movie data file not found")
+        
+        # Load and process movie data
+        df = pd.read_csv(movies_path)
+        
+        # Apply filters
+        if genre and genre.lower() != 'all':
+            df = df[df['genres'].str.contains(genre, case=False, na=False)]
+        
+        if min_rating:
+            df = df[df['imdb_score'] >= min_rating]
+        
+        if year_from:
+            df = df[df['title_year'] >= year_from]
+        
+        if year_to:
+            df = df[df['title_year'] <= year_to]
+        
+        # Sort by IMDB score and limit results
+        df = df.sort_values('imdb_score', ascending=False).head(limit)
+        
+        # Convert to API format
+        movies = []
+        for _, row in df.iterrows():
+            # Parse genres
+            genres_str = str(row.get('genres', ''))
+            genres = [g.strip() for g in genres_str.split(',') if g.strip()]
+            
+            movie = {
+                "id": len(movies) + 1,
+                "title": str(row.get('movie_title', 'Unknown')),
+                "genre": genres,
+                "year": int(row.get('title_year', 0)) if pd.notna(row.get('title_year')) else None,
+                "director": str(row.get('director_name', 'Unknown')),
+                "runtime": int(row.get('duration', 0)) if pd.notna(row.get('duration')) else None,
+                "imdbRating": float(row.get('imdb_score', 0)) if pd.notna(row.get('imdb_score')) else None,
+                "posterUrl": "🎬",  # Placeholder for now
+                "description": f"A {row.get('main_genre', 'movie')} film from {row.get('title_year', 'unknown year')}",
+                "mainGenre": str(row.get('main_genre', 'Unknown')),
+                "contentRating": str(row.get('content_rating', 'Not Rated')) if pd.notna(row.get('content_rating')) else 'Not Rated',
+                "starCast": str(row.get('star_cast', 'Unknown')) if pd.notna(row.get('star_cast')) else 'Unknown'
+            }
+            movies.append(movie)
+        
+        return {
+            "movies": movies,
+            "total": len(movies),
+            "filters_applied": {
+                "genre": genre,
+                "min_rating": min_rating,
+                "year_from": year_from,
+                "year_to": year_to,
+                "limit": limit
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error loading movies: {e}")
+        raise HTTPException(status_code=500, detail=f"Error loading movie data: {str(e)}")
+
+@app.post("/movies/{movie_id}/predict")
+async def predict_movie_completion(movie_id: int, user_data: dict):
+    """Predict completion likelihood for a specific movie"""
+    try:
+        # Use the existing predictor method
+        probability, risk_level, recommendations, user_segment = predictor.predict_dropoff(user_data)
+        
+        return {
+            "movie_id": movie_id,
+            "completion_likelihood": 1.0 - probability,  # Convert dropoff to completion
+            "dropoff_probability": probability,
+            "risk_level": risk_level,
+            "recommendations": recommendations,
+            "confidence": 0.8,
+            "factors": []
+        }
+        
+    except Exception as e:
+        print(f"Error predicting for movie {movie_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     print("🚀 Starting Movie Dropoff Prediction API with Real ML Model...")
