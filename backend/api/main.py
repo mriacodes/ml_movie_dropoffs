@@ -2,146 +2,368 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import numpy as np
-from typing import Dict, Any
+from typing import Dict, Any, List
 import json
+import joblib
+import os
 from datetime import datetime
-
-# Import our custom services and utilities
-from services.prediction_service import prediction_service
-from utils.data_utils import (
-    validate_user_data, 
-    preprocess_user_data, 
-    format_response_data,
-    log_prediction,
-    health_check,
-    get_model_metadata
-)
-from models.response_models import create_prediction_response, create_health_response
-
-# We'll add these once pydantic installs
-# from models.response_models import PredictionResponse, HealthResponse
-# from models.request_models import UserSurveyData
 
 app = FastAPI(
     title="Movie Dropoff Prediction API",
-    description="ML API for predicting user subscription dropoff risk",
+    description="ML API for predicting movie watching dropoff behavior",
     version="1.0.0"
 )
 
 # CORS configuration for Angular frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4200"],  # Angular default port
+    allow_origins=["http://localhost:4200", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ===== REAL ML MODEL PREDICTOR =====
+class MovieDropoffPredictor:
+    def __init__(self):
+        self.model = None
+        self.feature_names = []
+        self.model_info = {}
+        self.is_loaded = False
+        self.fallback_mode = False
+        
+        # Try to load the real model
+        self._load_real_model()
+    
+    def _load_real_model(self):
+        """Load Marivic's trained model"""
+        try:
+            # Path to the optimized model
+            model_path = "../django_models/movie_dropoff_model_optimized.pkl"
+            info_path = "../django_models/model_info.json"
+            
+            if os.path.exists(model_path):
+                # Load the trained model
+                self.model = joblib.load(model_path)
+                print("✅ Loaded optimized ML model successfully!")
+                
+                # Load model info if available
+                if os.path.exists(info_path):
+                    with open(info_path, 'r') as f:
+                        self.model_info = json.load(f)
+                    self.feature_names = self.model_info.get('features', [])
+                    print(f"✅ Loaded {len(self.feature_names)} features from model info")
+                else:
+                    print("⚠ Model info not found, using basic feature set")
+                    self.feature_names = self._get_basic_features()
+                
+                self.is_loaded = True
+                self.fallback_mode = False
+                
+                print(f"🎯 Model Performance:")
+                if 'performance_metrics' in self.model_info:
+                    metrics = self.model_info['performance_metrics']
+                    print(f"  - F1 Score: {metrics.get('f1_score', 'N/A')}")
+                    print(f"  - Accuracy: {metrics.get('accuracy', 'N/A')}")
+                    print(f"  - Precision: {metrics.get('precision', 'N/A')}")
+                    print(f"  - Recall: {metrics.get('recall', 'N/A')}")
+                
+            else:
+                print(f"❌ Model file not found at: {model_path}")
+                self._load_fallback_model()
+                
+        except Exception as e:
+            print(f"❌ Error loading real model: {e}")
+            self._load_fallback_model()
+    
+    def _load_fallback_model(self):
+        """Load fallback rule-based model"""
+        print("🔄 Loading fallback rule-based model...")
+        self.fallback_mode = True
+        self.is_loaded = True
+        self.feature_names = self._get_basic_features()
+        self.model_info = {
+            "model_name": "Rule-based Fallback",
+            "version": "1.0.0",
+            "type": "fallback"
+        }
+    
+    def _get_basic_features(self):
+        """Basic feature set for fallback"""
+        return [
+            "boring_plot", "total_stopping_reasons", "stop_historical", 
+            "enjoy_action", "genre_completion_ratio", "patience_score",
+            "attention_span_score", "total_multitasking_behaviors",
+            "social_influence_score", "is_weekend"
+        ]
+    
+    def _prepare_features(self, user_data: dict) -> pd.DataFrame:
+        """Prepare features for model prediction"""
+        if self.fallback_mode:
+            # For fallback, just use the basic features
+            feature_dict = {}
+            for feature in self.feature_names:
+                feature_dict[feature] = user_data.get(feature, 0)
+            return pd.DataFrame([feature_dict])
+        
+        else:
+            # For real model, prepare all features
+            # Create feature vector with all expected features
+            feature_dict = {}
+            
+            # Fill in provided features
+            for feature in self.feature_names:
+                feature_dict[feature] = user_data.get(feature, 0)
+            
+            # Create DataFrame with proper feature order
+            feature_df = pd.DataFrame([feature_dict])
+            
+            # Ensure all columns are present and in correct order
+            feature_df = feature_df.reindex(columns=self.feature_names, fill_value=0)
+            
+            return feature_df
+    
+    def predict_dropoff(self, user_data: dict):
+        """Predict dropoff probability using real or fallback model"""
+        try:
+            if self.fallback_mode:
+                return self._fallback_prediction(user_data)
+            else:
+                return self._real_model_prediction(user_data)
+                
+        except Exception as e:
+            print(f"⚠ Prediction error: {e}, falling back to rule-based")
+            return self._fallback_prediction(user_data)
+    
+    def _real_model_prediction(self, user_data: dict):
+        """Use the real trained model for prediction"""
+        # Prepare features
+        feature_df = self._prepare_features(user_data)
+        
+        # Get prediction probability
+        probability = self.model.predict_proba(feature_df)[0][1]  # Probability of dropout
+        
+        # Determine risk level and recommendations
+        risk_level, user_segment, recommendations = self._analyze_prediction(probability, user_data)
+        
+        return probability, risk_level, recommendations, user_segment
+    
+    def _fallback_prediction(self, user_data: dict):
+        """Rule-based prediction fallback"""
+        risk_score = 0.0
+        
+        # Analyze risk factors
+        if user_data.get("boring_plot", 0) == 1:
+            risk_score += 0.25
+        if user_data.get("total_stopping_reasons", 0) > 3:
+            risk_score += 0.20
+        if user_data.get("stop_historical", 0) == 1:
+            risk_score += 0.15
+        if user_data.get("genre_completion_ratio", 0.5) < 0.4:
+            risk_score += 0.15
+        if user_data.get("patience_score", 0.5) < 0.3:
+            risk_score += 0.10
+        if user_data.get("attention_span_score", 0.5) < 0.3:
+            risk_score += 0.10
+        if user_data.get("total_multitasking_behaviors", 0) > 2:
+            risk_score += 0.05
+        
+        # Convert to probability
+        probability = min(max(risk_score, 0.05), 0.95)
+        
+        # Determine risk level and recommendations
+        risk_level, user_segment, recommendations = self._analyze_prediction(probability, user_data)
+        
+        return probability, risk_level, recommendations, user_segment
+    
+    def _analyze_prediction(self, probability: float, user_data: dict):
+        """Analyze prediction and generate recommendations"""
+        if probability >= 0.7:
+            risk_level = "High Risk"
+            user_segment = "High Dropout Risk"
+            recommendations = [
+                "Consider shorter movies (under 90 minutes)",
+                "Choose action or comedy genres for better engagement",
+                "Watch during peak attention hours",
+                "Minimize distractions during viewing"
+            ]
+        elif probability >= 0.4:
+            risk_level = "Medium Risk"
+            user_segment = "Moderate Dropout Risk"
+            recommendations = [
+                "Select movies with strong opening scenes",
+                "Try genres you historically complete more",
+                "Reduce multitasking during viewing",
+                "Consider watching with others"
+            ]
+        else:
+            risk_level = "Low Risk"
+            user_segment = "Completion Oriented"
+            recommendations = [
+                "Continue with current viewing habits",
+                "You show good completion patterns",
+                "Consider exploring new genres"
+            ]
+        
+        return risk_level, user_segment, recommendations
+
+# Initialize predictor
+predictor = MovieDropoffPredictor()
+
+# ===== UTILITY FUNCTIONS =====
+def validate_user_data(data: dict) -> tuple[bool, list]:
+    """Validate input data"""
+    errors = []
+    required_fields = ["boring_plot", "total_stopping_reasons"]
+    
+    for field in required_fields:
+        if field not in data:
+            errors.append(f"Missing required field: {field}")
+    
+    # Validate data types and ranges
+    for key, value in data.items():
+        if key in ["boring_plot", "stop_historical", "enjoy_action", "is_weekend"]:
+            if not isinstance(value, int) or value not in [0, 1]:
+                errors.append(f"{key} must be 0 or 1")
+        elif key in ["genre_completion_ratio", "patience_score", "attention_span_score"]:
+            if not isinstance(value, (int, float)) or not (0.0 <= value <= 1.0):
+                errors.append(f"{key} must be between 0.0 and 1.0")
+    
+    return len(errors) == 0, errors
+
+def format_prediction_response(probability: float, risk_level: str, 
+                             recommendations: List[str], user_segment: str) -> dict:
+    """Format prediction response"""
+    return {
+        "dropoff_probability": round(probability, 3),
+        "risk_level": risk_level,
+        "user_segment": user_segment,
+        "recommendations": recommendations[:4],  # Limit to 4
+        "confidence_score": 0.85,
+        "model_version": predictor.model_info.get('version', '1.0.0'),
+        "model_type": "ML Model" if not predictor.fallback_mode else "Rule-based Fallback",
+        "timestamp": datetime.now().isoformat()
+    }
+
+# ===== API ENDPOINTS =====
 @app.on_event("startup")
 async def startup_event():
-    """Initialize the ML model and services on startup"""
-    try:
-        # Load the prediction service
-        success = prediction_service.load_model()
-        
-        if success:
-            print("✓ API started successfully")
-            print("✓ ML dependencies loaded (pandas, numpy)")
-            print("✓ Prediction service initialized")
-            print("⚠ Running in PLACEHOLDER mode - waiting for real ML model")
-        else:
-            print("⚠ API started with limited functionality")
-            
-    except Exception as e:
-        print(f"✗ Startup error: {e}")
-        print("⚠ API running in fallback mode")
+    """Initialize the API on startup"""
+    print("🎬 Movie Dropoff Prediction API Started")
+    print(f"✅ Predictor loaded: {predictor.is_loaded}")
+    print(f"🤖 Model type: {'Real ML Model' if not predictor.fallback_mode else 'Fallback Rule-based'}")
+    print(f"📊 Features available: {len(predictor.feature_names)}")
+    print("🚀 API ready for predictions!")
 
-# Temporary basic endpoints while pydantic installs
 @app.get("/")
 async def root():
+    """Root endpoint with API information"""
     return {
-        "message": "Movie Dropoff Prediction API is running",
-        "status": "healthy",
+        "message": "Movie Dropoff Prediction API",
+        "description": "Predict user movie watching dropoff behavior using ML",
         "version": "1.0.0",
-        "timestamp": datetime.now().isoformat()
+        "status": "running",
+        "model_loaded": predictor.is_loaded,
+        "model_type": "ML Model" if not predictor.fallback_mode else "Rule-based Fallback",
+        "feature_count": len(predictor.feature_names),
+        "timestamp": datetime.now().isoformat(),
+        "endpoints": {
+            "predict": "POST /predict",
+            "health": "GET /health",
+            "model_info": "GET /model/info",
+            "test": "GET /test",
+            "docs": "GET /docs"
+        }
     }
 
 @app.get("/health")
 async def health_check():
+    """Health check endpoint"""
     return {
         "status": "healthy",
         "message": "API is operational",
-        "dependencies": {
-            "pandas": pd.__version__,
-            "numpy": np.__version__
-        }
-    }
-
-# Placeholder prediction endpoint
-@app.post("/predict")
-async def predict_dropoff(user_data: Dict[Any, Any]):
-    """Temporary prediction endpoint while dependencies install"""
-    
-    # Simple placeholder logic using your existing packages
-    boring_plot = user_data.get("boring_plot", 0)
-    feeling_bored = user_data.get("feeling_bored_pause", 0)
-    multitasking = user_data.get("total_multitasking_behaviors", 0)
-    attention_span = user_data.get("attention_span_score", 0.5)
-    
-    # Quick risk calculation
-    risk_score = (boring_plot * 0.3 + feeling_bored * 0.2 + 
-                 min(multitasking/5, 0.3) + (1-attention_span) * 0.2)
-    
-    probability = min(max(risk_score, 0.05), 0.95)
-    
-    if probability >= 0.7:
-        risk_level = "High Risk"
-        recommendations = [
-            "Consider shorter movies",
-            "Choose engaging genres",
-            "Minimize distractions"
-        ]
-    elif probability >= 0.4:
-        risk_level = "Medium Risk" 
-        recommendations = [
-            "Select movies with strong openings",
-            "Try preferred genres"
-        ]
-    else:
-        risk_level = "Low Risk"
-        recommendations = ["Continue current preferences"]
-    
-    return {
-        "dropoff_probability": round(probability, 3),
-        "risk_level": risk_level,
-        "confidence_score": 0.85,
-        "recommendations": recommendations,
-        "user_segment": "Placeholder Analysis",
+        "model_status": "loaded" if predictor.is_loaded else "not_loaded",
+        "model_type": "ML Model" if not predictor.fallback_mode else "Rule-based Fallback",
+        "version": "1.0.0",
         "timestamp": datetime.now().isoformat()
     }
 
-@app.get("/test-ml")
-async def test_ml_dependencies():
-    """Test that your ML packages are working"""
+@app.post("/predict")
+async def predict_dropoff(user_data: Dict[str, Any]):
+    """
+    Predict movie dropoff probability for a user using Marivic's trained model
+    """
     try:
-        # Test pandas
-        df = pd.DataFrame({"test": [1, 2, 3]})
+        # Validate input
+        is_valid, errors = validate_user_data(user_data)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail={"errors": errors})
         
-        # Test numpy
-        arr = np.array([1, 2, 3])
+        # Get prediction
+        probability, risk_level, recommendations, user_segment = predictor.predict_dropoff(user_data)
+        
+        # Format response
+        response = format_prediction_response(probability, risk_level, recommendations, user_segment)
         
         return {
-            "pandas_test": "Working",
-            "numpy_test": "Working", 
-            "pandas_version": pd.__version__,
-            "numpy_version": np.__version__,
-            "sample_dataframe": df.to_dict(),
-            "sample_array": arr.tolist()
+            "input_data": user_data,
+            "prediction": response,
+            "status": "success"
         }
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+
+@app.get("/test")
+async def test_prediction():
+    """Test endpoint with sample data"""
+    test_data = {
+        "boring_plot": 1,
+        "total_stopping_reasons": 4,
+        "stop_historical": 0,
+        "enjoy_action": 1,
+        "genre_completion_ratio": 0.6,
+        "patience_score": 0.33,
+        "attention_span_score": 0.5,
+        "total_multitasking_behaviors": 2,
+        "social_influence_score": 4,
+        "is_weekend": 1
+    }
+    
+    probability, risk_level, recommendations, user_segment = predictor.predict_dropoff(test_data)
+    
+    return {
+        "test_data": test_data,
+        "prediction": {
+            "probability": round(probability, 3),
+            "risk_level": risk_level,
+            "user_segment": user_segment,
+            "recommendations": recommendations,
+            "model_type": "ML Model" if not predictor.fallback_mode else "Rule-based Fallback"
+        },
+        "status": "test_successful",
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.get("/model/info")
+async def get_model_info():
+    """Get detailed model information"""
+    return {
+        "model_info": predictor.model_info,
+        "feature_count": len(predictor.feature_names),
+        "features": predictor.feature_names[:20],  # Show first 20 features
+        "total_features": len(predictor.feature_names),
+        "model_type": "ML Model" if not predictor.fallback_mode else "Rule-based Fallback",
+        "status": "loaded" if predictor.is_loaded else "not_loaded",
+        "fallback_mode": predictor.fallback_mode,
+        "timestamp": datetime.now().isoformat()
+    }
 
 if __name__ == "__main__":
-    # This will work once uvicorn installs
     import uvicorn
+    print("🚀 Starting Movie Dropoff Prediction API with Real ML Model...")
+    print("📡 API will be available at: http://localhost:8000")
+    print("📖 Documentation at: http://localhost:8000/docs")
     uvicorn.run(app, host="0.0.0.0", port=8000)

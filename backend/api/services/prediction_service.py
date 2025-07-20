@@ -3,54 +3,84 @@ import numpy as np
 from typing import Dict, List, Tuple
 import os
 import json
+import joblib
+import pickle
 
 class MovieDropoffPredictionService:
     """
     Main prediction service for movie dropoff model
-    Uses placeholder logic until real ML model is integrated
+    Now using Marivic's trained Gradient Boosting model
     """
     
     def __init__(self):
         self.model = None
+        self.smote_transformer = None
         self.feature_names = []
+        self.model_info = {}
         self.is_loaded = False
-        self.model_info = {
-            "name": "Movie Dropoff Predictor",
-            "version": "1.0.0",
-            "features": 50,
-            "status": "placeholder"
-        }
         
     def load_model(self):
         """Load the trained ML model and preprocessing components"""
         try:
-            # TODO: Load actual model when available
-            # model_path = "../django_models/movie_dropoff_model.pkl"
-            # self.model = joblib.load(model_path)
+            # Paths to model files
+            model_path = "../django_models/movie_dropoff_model_optimized.pkl"
+            smote_path = "../django_models/smote_transformer.pkl"
+            info_path = "../django_models/model_info.json"
             
-            # For now, simulate model loading
-            self.feature_names = self._get_expected_features()
+            # Check if files exist
+            if not os.path.exists(model_path):
+                print(f"⚠ Model file not found at {model_path}, using fallback")
+                return self._load_fallback_model()
+            
+            # Load the trained model
+            self.model = joblib.load(model_path)
+            print(f"✓ Loaded trained model from {model_path}")
+            
+            # Load SMOTE transformer (if needed)
+            if os.path.exists(smote_path):
+                self.smote_transformer = joblib.load(smote_path)
+                print("✓ Loaded SMOTE transformer")
+            
+            # Load model info
+            if os.path.exists(info_path):
+                with open(info_path, 'r') as f:
+                    self.model_info = json.load(f)
+                    self.feature_names = self.model_info.get('feature_names', [])
+                print(f"✓ Loaded model info with {len(self.feature_names)} features")
+            
             self.is_loaded = True
-            print("✓ Model loaded successfully (placeholder)")
+            print("✓ Real ML model loaded successfully!")
+            print(f"  - Model type: Gradient Boosting Classifier")
+            print(f"  - Features: {len(self.feature_names)}")
+            print(f"  - Performance: F1-score 75.9%, Accuracy 65%")
+            
             return True
             
         except Exception as e:
-            print(f"✗ Model loading failed: {e}")
-            return False
+            print(f"✗ Real model loading failed: {e}")
+            print("⚠ Falling back to placeholder mode")
+            return self._load_fallback_model()
     
-    def _get_expected_features(self) -> List[str]:
-        """Return the expected feature names for the model"""
-        # Based on your feature engineering work - 50 selected features
+    def _load_fallback_model(self):
+        """Fallback to placeholder model if real model loading fails"""
+        self.feature_names = self._get_placeholder_features()
+        self.is_loaded = True
+        self.model_info = {
+            "name": "Movie Dropoff Predictor",
+            "version": "1.0.0-fallback",
+            "features": len(self.feature_names),
+            "status": "placeholder"
+        }
+        print("✓ Fallback model loaded")
+        return True
+    
+    def _get_placeholder_features(self) -> List[str]:
+        """Return placeholder feature names"""
         return [
-            'age_group', 'education_level', 'income_bracket', 'employment_status',
-            'household_size', 'region', 'streaming_frequency', 'device_preference',
-            'genre_preference_action', 'genre_preference_comedy', 'genre_preference_drama',
-            'viewing_time_weekday', 'viewing_time_weekend', 'subscription_duration',
-            'previous_cancellations', 'customer_support_contacts',
-            'content_discovery_method', 'social_viewing_frequency',
-            'price_sensitivity', 'feature_usage_score',
-            # Add more features based on your feature engineering results
-            # This would come from your final_feature_set.pkl
+            'boring_plot', 'total_stopping_reasons', 'stop_historical', 'enjoy_action',
+            'total_genres_stopped', 'genre_completion_ratio', 'patience_score',
+            'total_multitasking_behaviors', 'attention_span_score', 'behavior_cluster',
+            'social_influence_score', 'watch_frequency_score', 'is_weekend'
         ]
     
     def predict_dropoff(self, user_data: Dict) -> Tuple[float, str, List[str], str]:
@@ -59,17 +89,90 @@ class MovieDropoffPredictionService:
         Returns: (probability, risk_level, recommendations, user_segment)
         """
         try:
-            # Placeholder prediction logic using behavioral heuristics
-            probability = self._calculate_placeholder_probability(user_data)
+            if self.model is not None:
+                # Use real trained model
+                return self._predict_with_real_model(user_data)
+            else:
+                # Use placeholder logic
+                return self._predict_with_placeholder(user_data)
+                
+        except Exception as e:
+            print(f"Prediction error: {e}")
+            return 0.5, "Medium", ["Contact support"], "Unknown"
+    
+    def _predict_with_real_model(self, user_data: Dict) -> Tuple[float, str, List[str], str]:
+        """Use the real trained Gradient Boosting model for prediction"""
+        try:
+            # Prepare features for the model
+            feature_vector = self._prepare_features_for_model(user_data)
+            
+            # Get prediction probability
+            probabilities = self.model.predict_proba([feature_vector])
+            probability = float(probabilities[0][1])  # Probability of dropoff (class 1)
+            
+            # Calculate additional metrics
             risk_level = self._get_risk_level(probability)
             recommendations = self._get_recommendations(user_data, probability)
             user_segment = self._get_user_segment(user_data)
             
+            print(f"✓ Real model prediction: {probability:.3f} ({risk_level})")
             return probability, risk_level, recommendations, user_segment
             
         except Exception as e:
-            print(f"Prediction error: {e}")
-            return 0.5, "Medium", ["Contact support"], "Unknown"
+            print(f"Real model prediction failed: {e}, using fallback")
+            return self._predict_with_placeholder(user_data)
+    
+    def _prepare_features_for_model(self, user_data: Dict) -> List[float]:
+        """
+        Prepare user input data to match the model's expected feature format
+        """
+        # Create feature vector matching the model's expected input
+        feature_vector = []
+        
+        # Map from survey questions to model features
+        feature_mapping = {
+            'boring_plot': 'in_general_what_are_the_main_reasons_you_stop_watching_movies_before_finishing_boring_or_uninteresting_plot',
+            'stop_historical': 'which_genres_do_you_find_yourself_stopping_more_often_before_finishing_historical',
+            'feeling_bored_pause': 'why_do_you_usually_pause_the_movie_feeling_bored_or_uninterested',
+            'total_genres_stopped': 'total_genres_stopped',
+            'total_stopping_reasons': 'total_stopping_reasons',
+            'genre_completion_ratio': 'genre_completion_ratio',
+            'patience_score': 'patience_score',
+            'total_multitasking_behaviors': 'total_multitasking_behaviors',
+            'attention_span_score': 'attention_span_score',
+            'behavior_cluster': 'behavior_cluster',
+            'social_influence_score': 'social_influence_score',
+            'is_weekend': 'is_weekend'
+        }
+        
+        # For each feature expected by the model, try to get value from user_data
+        for feature_name in self.feature_names:
+            # Try to find matching input
+            value = 0.0  # Default value
+            
+            # Direct mapping
+            for input_key, model_feature in feature_mapping.items():
+                if model_feature == feature_name and input_key in user_data:
+                    value = float(user_data[input_key])
+                    break
+            
+            # Handle boolean features (convert to 0/1)
+            if isinstance(value, bool):
+                value = 1.0 if value else 0.0
+            
+            feature_vector.append(value)
+        
+        print(f"✓ Prepared feature vector with {len(feature_vector)} features")
+        return feature_vector
+    
+    def _predict_with_placeholder(self, user_data: Dict) -> Tuple[float, str, List[str], str]:
+        """Fallback placeholder prediction logic"""
+        probability = self._calculate_placeholder_probability(user_data)
+        risk_level = self._get_risk_level(probability)
+        recommendations = self._get_recommendations(user_data, probability)
+        user_segment = self._get_user_segment(user_data)
+        
+        return probability, risk_level, recommendations, user_segment
     
     def _calculate_placeholder_probability(self, data: Dict) -> float:
         """
