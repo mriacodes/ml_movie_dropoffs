@@ -7,6 +7,34 @@
           Predict Your Movie 
           <span class="text-primary">Watching Behavior</span>
         </h1>
+        
+        <!-- API Status Indicator -->
+        <div class="api-status-container">
+          <div class="api-status" [ngClass]="{
+            'status-checking': apiStatus() === 'checking',
+            'status-connected': apiStatus() === 'connected',
+            'status-disconnected': apiStatus() === 'disconnected'
+          }">
+            @switch (apiStatus()) {
+              @case ('checking') {
+                <span class="status-indicator"></span>
+                <span class="status-text">Checking API...</span>
+              }
+              @case ('connected') {
+                <span class="status-indicator"></span>
+                <span class="status-text">API Connected</span>
+                @if (modelInfo()) {
+                  <span class="model-info">• Model: {{modelInfo().name}}</span>
+                }
+              }
+              @case ('disconnected') {
+                <span class="status-indicator"></span>
+                <span class="status-text">API Offline</span>
+              }
+            }
+          </div>
+        </div>
+        
         <p class="text-lg hero-subtitle">
           Discover how likely you are to finish a movie before starting it. 
           Our AI-powered system analyzes your viewing habits to predict movie completion likelihood.
@@ -88,12 +116,22 @@
   <div class="container">
     <div class="stats-grid">
       <div class="stat-item text-center">
-        <div class="stat-number h1 text-primary">75%</div>
-        <div class="stat-label text-base">Model Accuracy</div>
+        @if (modelInfo() && modelInfo().performance) {
+          <div class="stat-number h1 text-primary">{{(modelInfo().performance.f1_score * 100) | number:'1.0-0'}}%</div>
+          <div class="stat-label text-base">Model F1-Score</div>
+        } @else {
+          <div class="stat-number h1 text-primary">75%</div>
+          <div class="stat-label text-base">Model Accuracy</div>
+        }
       </div>
       <div class="stat-item text-center">
-        <div class="stat-number h1 text-primary">12</div>
-        <div class="stat-label text-base">Key Factors Analyzed</div>
+        @if (modelInfo() && modelInfo().feature_count) {
+          <div class="stat-number h1 text-primary">{{modelInfo().feature_count}}</div>
+          <div class="stat-label text-base">Features Analyzed</div>
+        } @else {
+          <div class="stat-number h1 text-primary">12</div>
+          <div class="stat-label text-base">Key Factors Analyzed</div>
+        }
       </div>
       <div class="stat-item text-center">
         <div class="stat-number h1 text-primary">5000+</div>

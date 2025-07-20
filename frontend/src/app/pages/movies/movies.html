@@ -6,6 +6,17 @@
       <h1 class="h2">Movie Predictions</h1>
       <p class="text-lg">Discover how likely you are to complete these movies based on your preferences</p>
       
+      <!-- Error Message -->
+      <div *ngIf="errorMessage()" class="alert alert-error">
+        <div class="alert-content">
+          <h3 class="h6">⚠ API Connection Issue</h3>
+          <p>{{ errorMessage() }}</p>
+          <button class="btn btn-outline btn-sm" (click)="refreshMovies()">
+            🔄 Retry Connection
+          </button>
+        </div>
+      </div>
+      
       <!-- Survey Status -->
       <div *ngIf="!hasSurveyData()" class="survey-prompt">
         <div class="alert">
