@@ -1,0 +1,134 @@
+<!-- Survey Container -->
+<div class="survey-container">
+  <div class="container">
+    <!-- Survey Header -->
+    <div class="survey-header">
+      <h1 class="h2">Movie Behavior Survey</h1>
+      <p class="text-lg">Help us understand your movie-watching preferences to provide accurate predictions</p>
+      
+      <!-- Progress Bar -->
+      <div class="progress-section">
+        <div class="progress-bar">
+          <div class="progress-fill" [style.width.%]="progress"></div>
+        </div>
+        <div class="progress-text">
+          <span class="text-sm">Question {{ currentStep() + 1 }} of {{ questions.length }}</span>
+          <span class="text-sm">{{ progress.toFixed(0) }}% Complete</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Survey Form -->
+    <div class="survey-form">
+      <div class="question-card card">
+        <div class="card-body">
+          <!-- Question -->
+          <div class="question-section">
+            <h2 class="h4 question-title">{{ currentQuestion.question }}</h2>
+            
+            <!-- Boolean Questions -->
+            <div *ngIf="currentQuestion.type === 'boolean'" class="answer-options">
+              <div class="radio-group">
+                <label class="radio-option" 
+                       [class.selected]="getResponseValue(currentQuestion.fieldName) === true">
+                  <input type="radio" 
+                         [name]="currentQuestion.fieldName" 
+                         [value]="true"
+                         (change)="setResponse(currentQuestion.fieldName, true)">
+                  <span class="radio-custom"></span>
+                  <span class="radio-label">Yes</span>
+                </label>
+                
+                <label class="radio-option" 
+                       [class.selected]="getResponseValue(currentQuestion.fieldName) === false">
+                  <input type="radio" 
+                         [name]="currentQuestion.fieldName" 
+                         [value]="false"
+                         (change)="setResponse(currentQuestion.fieldName, false)">
+                  <span class="radio-custom"></span>
+                  <span class="radio-label">No</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Integer Questions -->
+            <div *ngIf="currentQuestion.type === 'integer'" class="answer-options">
+              <div class="number-options">
+                <button *ngFor="let option of currentQuestion.options" 
+                        class="number-option"
+                        [class.selected]="getResponseValue(currentQuestion.fieldName) === option"
+                        (click)="setResponse(currentQuestion.fieldName, option)">
+                  {{ option }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Navigation Buttons -->
+          <div class="navigation-section">
+            <div class="nav-buttons">
+              <button class="btn btn-outline" 
+                      (click)="previousStep()" 
+                      [disabled]="isFirstStep">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="m15 18-6-6 6-6"/>
+                </svg>
+                Previous
+              </button>
+
+              <div class="nav-spacer"></div>
+
+              <!-- Next Button -->
+              <button *ngIf="!isLastStep" 
+                      class="btn btn-primary" 
+                      (click)="nextStep()" 
+                      [disabled]="!canProceed">
+                Next
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="m9 18 6-6-6-6"/>
+                </svg>
+              </button>
+
+              <!-- Submit Button -->
+              <button *ngIf="isLastStep" 
+                      class="btn btn-primary" 
+                      (click)="submitSurvey()" 
+                      [disabled]="!canProceed || isSubmitting()">
+                <span *ngIf="!isSubmitting()">
+                  Submit Survey
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22,4 12,14.01 9,11.01"/>
+                  </svg>
+                </span>
+                <span *ngIf="isSubmitting()" class="flex items-center">
+                  <svg class="loading-spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12a9 9 0 11-6.219-8.56"/>
+                  </svg>
+                  Submitting...
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Survey Info -->
+      <div class="survey-info">
+        <div class="info-card card">
+          <div class="card-body">
+            <h3 class="h6">🔒 Your Privacy</h3>
+            <p class="text-sm">Your responses are used only for movie predictions and improving our ML model. No personal information is stored.</p>
+          </div>
+        </div>
+        
+        <div class="info-card card">
+          <div class="card-body">
+            <h3 class="h6">🎯 Accuracy</h3>
+            <p class="text-sm">Our model achieves 75% accuracy in predicting movie completion likelihood based on viewing behavior patterns.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
