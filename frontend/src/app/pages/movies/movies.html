@@ -108,7 +108,7 @@
         
         <!-- Movie Poster -->
         <div class="movie-poster">
-          <div class="poster-placeholder">{{ movie.posterUrl }}</div>
+          <img [src]="movie.posterUrl" alt="{{ movie.title }} Poster" class="poster-image" />
           
           <!-- Prediction Badge -->
           <!-- <div class="prediction-badge" 
@@ -169,6 +169,7 @@
   <div class="movie-modal" (click)="$event.stopPropagation()">
     <div class="modal-header">
       <h2 class="h3">{{ selectedMovie()!.title }}</h2>
+      <button class="close-button" (click)="closeModal()">×</button>
       <!-- <button class="close-btn">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -179,9 +180,14 @@
     </div>
     
     <div class="modal-content">
-      <div class="modal-poster">
-        <div class="poster-large">{{ selectedMovie()!.posterUrl }}</div>
-      </div>
+      <div class="poster-large">
+  <img
+    [src]="selectedMovie()?.posterUrl"
+    [alt]="selectedMovie()?.title + ' Poster'"
+    class="poster-image"
+  />
+</div>
+
       
       <div class="modal-details">
         <div class="movie-info-detailed">

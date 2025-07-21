@@ -53,27 +53,48 @@ export interface ApiHealthResponse {
   timestamp: string;
 }
 
+// export interface Movie {
+//   id: number;
+//   title: string;
+//   genre: string[];
+//   year: number;
+//   director: string;
+//   runtime: number;
+//   imdbRating: number;
+//   posterUrl: string;
+//   description: string;
+//   mainGenre: string;
+//   contentRating: string;
+//   starCast: string;
+//   completionLikelihood?: number;
+//   dropoffProbability?: number;
+
+
+//   riskLevel?: string;
+//   recommendations?: string[];
+//   confidence?: number;
+// }
+
 export interface Movie {
   id: number;
   title: string;
   genre: string[];
   year: number;
-  director: string;
-  runtime: number;
+  director?: string;
+  runtime?: number;
   imdbRating: number;
   posterUrl: string;
   description: string;
-  mainGenre: string;
-  contentRating: string;
-  starCast: string;
+  mainGenre?: string;
+  contentRating?: string;
+  starCast?: string;
   completionLikelihood?: number;
   dropoffProbability?: number;
-
-
   riskLevel?: string;
   recommendations?: string[];
   confidence?: number;
 }
+
 
 export interface MoviesResponse {
   movies: Movie[];
@@ -311,65 +332,135 @@ export class PredictionService {
   //   return this.http.get<MoviesResponse>(`${this.apiUrl}/movies${queryString}`);
   // }
 
-  getMovies(limit: number = 100, genre?: string, minRating: number = 6): Observable<MoviesResponse> {
-    let params = new HttpParams()
-      .set('api_key', this.tmdbApiKey)
-      .set('language', 'en-US')
-      .set('sort_by', 'popularity.desc')
-      .set('include_adult', 'false')
-      .set('vote_average.gte', minRating.toString())
-      .set('page', '1');
+//   getMovies(limit: number = 100, genre?: string, minRating: number = 6): Observable<MoviesResponse> {
+//     let params = new HttpParams()
+//       .set('api_key', this.tmdbApiKey)
+//       .set('language', 'en-US')
+//       .set('sort_by', 'popularity.desc')
+//       .set('include_adult', 'false')
+//       .set('vote_average.gte', minRating.toString())
+//       .set('page', '1');
 
-    if (genre && genre !== 'all') {
-      // Genre filtering must map from name to TMDb genre ID
-      const genreMap: Record<string, number> = {
-        Action: 28,
-        Adventure: 12,
-        Animation: 16,
-        Comedy: 35,
-        Documentary: 99,
-        Drama: 18,
-        Horror: 27,
-        Romance: 10749,
-        'Sci-Fi': 878,
-        Thriller: 53
-      };
+//     if (genre && genre !== 'all') {
+//       // Genre filtering must map from name to TMDb genre ID
+//       const genreMap: Record<string, number> = {
+//         Action: 28,
+//         Adventure: 12,
+//         Animation: 16,
+//         Comedy: 35,
+//         Documentary: 99,
+//         Drama: 18,
+//         Horror: 27,
+//         Romance: 10749,
+//         'Sci-Fi': 878,
+//         Thriller: 53
+//       };
 
-      const genreId = genreMap[genre];
-      if (genreId) {
-        params = params.set('with_genres', genreId.toString());
-      }
+//       const genreId = genreMap[genre];
+//       if (genreId) {
+//         params = params.set('with_genres', genreId.toString());
+//       }
+//     }
+
+//     return this.http.get<any>(`${this.tmdbBaseUrl}/discover/movie`, { params }).pipe(
+//   map((response) => {
+//     const movies: Movie[] = response.results.slice(0, limit).map((item: any) => ({
+//       id: item.id,
+//       title: item.title,
+//       genre: [], // Populate with actual names if desired
+//       year: item.release_date ? parseInt(item.release_date.slice(0, 4)) : 0,
+//       posterUrl: item.poster_path
+//         ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+//         : 'https://via.placeholder.com/500x750?text=No+Image',
+//       imdbRating: item.vote_average,
+//       description: item.overview,
+//     }));
+
+//     return {
+//   movies,
+//   total: response.total_results || movies.length,
+//   filters_applied: {
+//     genre: genre || null,
+//     min_rating: minRating ?? null,
+//     year_from: null,
+//     year_to: null,
+//     limit: limit
+//   }
+// };
+
+//   })
+// );
+//   }
+
+getMovies(limit: number = 100, genre?: string, minRating: number = 6): Observable<MoviesResponse> {
+  const genreMap: Record<number, string> = {
+    28: 'Action',
+    12: 'Adventure',
+    16: 'Animation',
+    35: 'Comedy',
+    99: 'Documentary',
+    18: 'Drama',
+    27: 'Horror',
+    10749: 'Romance',
+    878: 'Sci-Fi',
+    53: 'Thriller'
+  };
+
+  const nameToIdMap: Record<string, number> = Object.entries(genreMap)
+    .reduce((acc, [id, name]) => {
+      acc[name] = Number(id);
+      return acc;
+    }, {} as Record<string, number>);
+
+  let params = new HttpParams()
+    .set('api_key', this.tmdbApiKey)
+    .set('language', 'en-US')
+    .set('sort_by', 'popularity.desc')
+    .set('include_adult', 'false')
+    .set('vote_average.gte', minRating.toString())
+    .set('page', '1');
+
+  if (genre && genre !== 'all') {
+    const genreId = nameToIdMap[genre];
+    if (genreId) {
+      params = params.set('with_genres', genreId.toString());
     }
-
-    return this.http.get<any>(`${this.tmdbBaseUrl}/discover/movie`, { params }).pipe(
-  map((response) => {
-    const movies: Movie[] = response.results.slice(0, limit).map((item: any) => ({
-      id: item.id,
-      title: item.title,
-      genre: [], // Populate with actual names if desired
-      year: item.release_date ? parseInt(item.release_date.slice(0, 4)) : 0,
-      posterUrl: item.poster_path
-        ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
-        : 'https://via.placeholder.com/500x750?text=No+Image',
-      imdbRating: item.vote_average,
-      description: item.overview,
-    }));
-
-    return {
-  movies,
-  total: response.total_results || movies.length,
-  filters_applied: {
-    genre: genre || null,
-    min_rating: minRating ?? null,
-    year_from: null,
-    year_to: null,
-    limit: limit
   }
-};
 
-  })
-);
-  }
+  return this.http.get<any>(`${this.tmdbBaseUrl}/discover/movie`, { params }).pipe(
+    map((response) => {
+      const movies: Movie[] = response.results.slice(0, limit).map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        genre: item.genre_ids.map((id: number) => genreMap[id]).filter(Boolean),
+        year: item.release_date ? parseInt(item.release_date.slice(0, 4)) : 0,
+        posterUrl: item.poster_path
+          ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+          : 'https://via.placeholder.com/500x750?text=No+Image',
+        imdbRating: item.vote_average,
+        description: item.overview,
+        director: 'N/A',
+        runtime: 120,
+        mainGenre: genreMap[item.genre_ids[0]] || 'Unknown',
+        contentRating: 'N/A',
+        starCast: 'N/A'
+      }));
+
+      return {
+        movies,
+        total: response.total_results || movies.length,
+        filters_applied: {
+          genre: genre || null,
+          min_rating: minRating ?? null,
+          year_from: null,
+          year_to: null,
+          limit: limit
+        }
+      };
+    })
+  );
+}
+
 
 
   /**

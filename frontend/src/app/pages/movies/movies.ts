@@ -271,55 +271,100 @@ return {
     return Math.max(20, Math.min(90, Math.round(score)));
   }
 
-  applyFilters() {
-    let filtered = [...this.movies()];
-    const currentFilters = this.filters();
+  // applyFilters() {
+  //   let filtered = [...this.movies()];
+  //   const currentFilters = this.filters();
 
-    // Filter by genre
-    if (currentFilters.genre !== 'all') {
-      filtered = filtered.filter(movie => 
-        movie.genre.some(g => g.toLowerCase().includes(currentFilters.genre.toLowerCase()))
-      );
+  //   // Filter by genre
+  //   if (currentFilters.genre !== 'all') {
+  //     filtered = filtered.filter(movie => 
+  //       movie.genre.some(g => g.toLowerCase().includes(currentFilters.genre.toLowerCase()))
+  //     );
+  //   }
+
+  //   // Sort movies
+  //   filtered.sort((a, b) => {
+  //     let comparison = 0;
+      
+  //     switch (currentFilters.sortBy) {
+  //       case 'title':
+  //         comparison = a.title.localeCompare(b.title);
+  //         break;
+  //       case 'year':
+  //         comparison = (a.year || 0) - (b.year || 0);
+  //         break;
+  //       case 'rating':
+  //         comparison = (a.imdbRating || 0) - (b.imdbRating || 0);
+  //         break;
+  //       case 'prediction':
+  //         comparison = (a.completionLikelihood || 0) - (b.completionLikelihood || 0);
+  //         break;
+  //     }
+      
+  //     return currentFilters.sortOrder === 'desc' ? -comparison : comparison;
+  //   });
+
+  //   this.filteredMovies.set(filtered);
+  // }
+
+  applyFilters() {
+  let filtered = [...this.movies()];
+  const currentFilters = this.filters();
+
+  // Filter by genre
+  if (currentFilters.genre !== 'all') {
+    filtered = filtered.filter(movie =>
+      movie.genre.some(g => g.toLowerCase().includes(currentFilters.genre.toLowerCase()))
+    );
+  }
+
+  // Sort movies
+  filtered.sort((a, b) => {
+    let comparison = 0;
+
+    switch (currentFilters.sortBy) {
+      case 'title':
+        comparison = a.title.localeCompare(b.title);
+        break;
+      case 'year':
+        comparison = (a.year || 0) - (b.year || 0);
+        break;
+      case 'rating':
+        comparison = (a.imdbRating || 0) - (b.imdbRating || 0);
+        break;
+      case 'prediction':
+        comparison = (a.completionLikelihood || 0) - (b.completionLikelihood || 0);
+        break;
     }
 
-    // Sort movies
-    filtered.sort((a, b) => {
-      let comparison = 0;
-      
-      switch (currentFilters.sortBy) {
-        case 'title':
-          comparison = a.title.localeCompare(b.title);
-          break;
-        case 'year':
-          comparison = (a.year || 0) - (b.year || 0);
-          break;
-        case 'rating':
-          comparison = (a.imdbRating || 0) - (b.imdbRating || 0);
-          break;
-        case 'prediction':
-          comparison = (a.completionLikelihood || 0) - (b.completionLikelihood || 0);
-          break;
-      }
-      
-      return currentFilters.sortOrder === 'desc' ? -comparison : comparison;
-    });
+    return currentFilters.sortOrder === 'desc' ? -comparison : comparison;
+  });
 
-    this.filteredMovies.set(filtered);
-  }
+  this.filteredMovies.set(filtered);
+}
+
 
   updateFilter(key: keyof FilterOptions, value: any) {
-    this.filters.update(filters => ({
-      ...filters,
-      [key]: value
-    }));
-    
-    // If genre filter changed, reload movies to get fresh data
-    if (key === 'genre') {
-      this.loadMovies();
-    } else {
-      this.applyFilters();
+  this.filters.update(filters => ({
+    ...filters,
+    [key]: value
+  }));
+
+  if (key === 'genre') {
+    // Optional: Auto-change sorting when a genre is selected
+    if (value !== 'all') {
+      this.filters.update(f => ({
+        ...f,
+        sortBy: 'prediction',
+        sortOrder: 'desc'
+      }));
     }
+    this.loadMovies(); // Reload movies with new genre filter
+  } else {
+    this.applyFilters(); // Apply sorting, etc.
   }
+}
+
 
   selectMovie(movie: Movie) {
     this.selectedMovie.set(movie);
