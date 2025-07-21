@@ -18,14 +18,35 @@
       </div>
       
       <!-- Survey Status -->
-      <div *ngIf="!hasSurveyData()" class="survey-prompt">
+      <!-- <div *ngIf="!hasSurveyData()" class="survey-prompt">
         <div class="alert">
           <h3 class="h6">📋 Take Survey First</h3>
           <p>Complete our survey to get personalized movie completion predictions.</p>
           <a routerLink="/survey" class="btn btn-primary">Take Survey</a>
         </div>
       </div>
+    </div> -->
+
+    <!-- Survey Status -->
+<div class="survey-status">
+  <!-- IF NO SURVEY DATA: Show prompt to take survey -->
+  <div *ngIf="!hasSurveyData()" class="survey-prompt">
+    <div class="alert">
+      <h3 class="h6">📋 Take Survey First</h3>
+      <p>Complete our survey to get personalized movie completion predictions.</p>
+      <a routerLink="/survey" class="btn btn-primary">Take Survey</a>
     </div>
+  </div>
+
+  <!-- ✅ IF SURVEY DATA EXISTS: Show confirmation -->
+  <div *ngIf="hasSurveyData()" class="survey-confirmation">
+    <div class="alert alert-success">
+      <h3 class="h6">✅ Survey Complete</h3>
+      <p>Thank you! Your responses have been processed. Scroll down to view movie predictions tailored to you.</p>
+    </div>
+  </div>
+</div>
+
 
     <!-- Filters Section -->
     <div class="filters-section" *ngIf="hasSurveyData()">

@@ -17,6 +17,7 @@ interface FilterOptions {
   standalone: true,
 })
 export class MoviesComponent implements OnInit {
+
   isLoading = signal(false);
   movies = signal<Movie[]>([]);
   filteredMovies = signal<Movie[]>([]);
@@ -241,4 +242,17 @@ export class MoviesComponent implements OnInit {
   refreshMovies() {
     this.loadMovies();
   }
+
+  logAndUpdateSortBy(value: string) {
+  const filters = this.filters();
+  console.log('Sort by changed to:', value);
+  console.log('Current Filters:', {
+    genre: filters.genre,
+    sortBy: value,
+    sortOrder: filters.sortOrder
+  });
+  this.updateFilter('sortBy', value);
+}
+
+
 }

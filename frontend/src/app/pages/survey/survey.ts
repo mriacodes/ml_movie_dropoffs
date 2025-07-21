@@ -275,8 +275,8 @@ Probability: ${dropoffProbability}%
 Redirecting to view personalized movie recommendations...`);
 
         this.router.navigate(['/movies'], {
-          state: { predictionResult: response }
-        });
+  state: { predictionResult: response }
+});
       },
       error: (error) => {
         console.error('❌ API Error:', error);

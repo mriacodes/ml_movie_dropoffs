@@ -1,7 +1,7 @@
 import { Component, signal, computed, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { PredictionService, Movie, MoviesResponse, UserSurveyData } from '../../services/prediction.service';
+import { PredictionService, Movie, MoviesResponse, UserSurveyData, PredictionResponse } from '../../services/prediction.service';
 
 interface FilterOptions {
   genre: string;
@@ -23,6 +23,8 @@ export class MoviesComponent implements OnInit {
   selectedMovie = signal<Movie | null>(null);
   errorMessage = signal<string | null>(null);
   userSurveyData = signal<UserSurveyData | null>(null);
+  predictionResult = signal<PredictionResponse | null>(null);
+
   
   filters = signal<FilterOptions>({
     genre: 'all',
@@ -35,26 +37,64 @@ export class MoviesComponent implements OnInit {
     'Romance', 'Sci-Fi', 'Thriller', 'Animation', 'Documentary'
   ]);
 
-  constructor(private predictionService: PredictionService) {}
+  constructor(private predictionService: PredictionService) {
+  const navigation = window.history.state;
+  if (navigation && navigation.predictionResult) {
+    console.log('📥 Received prediction result from Survey:', navigation.predictionResult);
+    // You can store it in a signal or use directly
+    this.predictionResult.set(navigation.predictionResult);
+  }
+}
+
+
+
 
   // Computed properties
-  hasSurveyData = computed(() => {
-    // Check if user has completed survey data in session storage
-    const surveyData = sessionStorage.getItem('userSurveyData');
-    if (surveyData) {
-      try {
-        this.userSurveyData.set(JSON.parse(surveyData));
-        return true;
-      } catch {
-        return false;
-      }
-    }
-    return false;
-  });
+  // hasSurveyData = computed(() => {
+  //   // Check if user has completed survey data in session storage
+  //   const surveyData = sessionStorage.getItem('userSurveyData');
+  //   if (surveyData) {
+  //     try {
+  //       this.userSurveyData.set(JSON.parse(surveyData));
+  //       return true;
+  //     } catch {
+  //       return false;
+  //     }
+  //   }
+  //   return false;
+  // });
 
-  ngOnInit() {
-    this.loadMovies();
+  hasSurveyData = computed(() => {
+  return this.userSurveyData() !== null;
+});
+
+
+ ngOnInit() {
+  // Get survey data
+  const surveyData = sessionStorage.getItem('userSurveyData');
+  if (surveyData) {
+    try {
+      this.userSurveyData.set(JSON.parse(surveyData));
+    } catch (error) {
+      console.error('Invalid survey data in sessionStorage:', error);
+    }
   }
+
+  // Get prediction result
+  const navigation = window.history.state;
+  if (navigation && navigation.predictionResult) {
+    this.predictionResult.set(navigation.predictionResult);
+    sessionStorage.setItem('predictionResult', JSON.stringify(navigation.predictionResult));
+  } else {
+    const savedResult = sessionStorage.getItem('predictionResult');
+    if (savedResult) {
+      this.predictionResult.set(JSON.parse(savedResult));
+    }
+  }
+
+  this.loadMovies();
+}
+
 
   async loadMovies() {
     this.isLoading.set(true);
@@ -287,4 +327,9 @@ export class MoviesComponent implements OnInit {
   closeMovieDetail() {
     this.selectedMovie.set(null);
   }
+
+  logAndUpdateSortBy(value: string) {
+  console.log('Sort by changed to:', value);
+  this.updateFilter('sortBy', value);
+}
 }

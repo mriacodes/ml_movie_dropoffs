@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, throwError, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
@@ -99,6 +99,8 @@ export class PredictionService {
   // private apiUrl = 'http://localhost:8000';
   private apiUrl = 'http://localhost:8000/predict/';
     private testApiUrl = 'http://localhost:8000';
+      private tmdbApiKey = '9bedd8178358fe73088aaca74b58c6a8'; // Replace with your actual TMDb API key
+  private tmdbBaseUrl = 'https://api.themoviedb.org/3';
 
   
     constructor(private http: HttpClient) {}
@@ -276,32 +278,93 @@ export class PredictionService {
   /**
    * Get movies from the IMDB dataset
    */
-  getMovies(
-    limit: number = 50,
-    genre?: string,
-    minRating?: number,
-    yearFrom?: number,
-    yearTo?: number
-  ): Observable<MoviesResponse> {
-    let params: string[] = [];
-    params.push(`limit=${limit}`);
+  // getMovies(
+  //   limit: number = 50,
+  //   genre?: string,
+  //   minRating?: number,
+  //   yearFrom?: number,
+  //   yearTo?: number
+  // ): Observable<MoviesResponse> {
+  //   let params: string[] = [];
+  //   params.push(`limit=${limit}`);
     
+  //   if (genre && genre !== 'all') {
+  //     params.push(`genre=${encodeURIComponent(genre)}`);
+  //   }
+  //   if (minRating) {
+  //     params.push(`min_rating=${minRating}`);
+  //   }
+  //   if (yearFrom) {
+  //     params.push(`year_from=${yearFrom}`);
+  //   }
+  //   if (yearTo) {
+  //     params.push(`year_to=${yearTo}`);
+  //   }
+
+  //   const queryString = params.length > 0 ? `?${params.join('&')}` : '';
+  //   return this.http.get<MoviesResponse>(`${this.apiUrl}/movies${queryString}`);
+  // }
+
+  getMovies(limit: number = 100, genre?: string, minRating: number = 6): Observable<MoviesResponse> {
+    let params = new HttpParams()
+      .set('api_key', this.tmdbApiKey)
+      .set('language', 'en-US')
+      .set('sort_by', 'popularity.desc')
+      .set('include_adult', 'false')
+      .set('vote_average.gte', minRating.toString())
+      .set('page', '1');
+
     if (genre && genre !== 'all') {
-      params.push(`genre=${encodeURIComponent(genre)}`);
-    }
-    if (minRating) {
-      params.push(`min_rating=${minRating}`);
-    }
-    if (yearFrom) {
-      params.push(`year_from=${yearFrom}`);
-    }
-    if (yearTo) {
-      params.push(`year_to=${yearTo}`);
+      // Genre filtering must map from name to TMDb genre ID
+      const genreMap: Record<string, number> = {
+        Action: 28,
+        Adventure: 12,
+        Animation: 16,
+        Comedy: 35,
+        Documentary: 99,
+        Drama: 18,
+        Horror: 27,
+        Romance: 10749,
+        'Sci-Fi': 878,
+        Thriller: 53
+      };
+
+      const genreId = genreMap[genre];
+      if (genreId) {
+        params = params.set('with_genres', genreId.toString());
+      }
     }
 
-    const queryString = params.length > 0 ? `?${params.join('&')}` : '';
-    return this.http.get<MoviesResponse>(`${this.apiUrl}/movies${queryString}`);
+    return this.http.get<any>(`${this.tmdbBaseUrl}/discover/movie`, { params }).pipe(
+  map((response) => {
+    const movies: Movie[] = response.results.slice(0, limit).map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      genre: [], // Populate with actual names if desired
+      year: item.release_date ? parseInt(item.release_date.slice(0, 4)) : 0,
+      posterUrl: item.poster_path
+        ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+        : 'https://via.placeholder.com/500x750?text=No+Image',
+      imdbRating: item.vote_average,
+      description: item.overview,
+    }));
+
+    return {
+  movies,
+  total: response.total_results || movies.length,
+  filters_applied: {
+    genre: genre || null,
+    min_rating: minRating ?? null,
+    year_from: null,
+    year_to: null,
+    limit: limit
   }
+};
+
+  })
+);
+  }
+
 
   /**
    * Get prediction for a specific movie
