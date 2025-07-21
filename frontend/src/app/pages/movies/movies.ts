@@ -13,7 +13,8 @@ interface FilterOptions {
   selector: 'app-movies',
   imports: [RouterLink, CommonModule],
   templateUrl: './movies.html',
-  styleUrl: './movies.scss'
+  styleUrl: './movies.scss',
+  standalone: true,
 })
 export class MoviesComponent implements OnInit {
   isLoading = signal(false);

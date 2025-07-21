@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { PredictionService, UserSurveyData, PredictionResponse } from '../../services/prediction.service';
+import { PredictionTestApi, PredictionResponse2 } from '../../services/prediction-test-api';
 
 interface SurveyQuestion {
   id: string;
@@ -20,7 +21,8 @@ interface SurveyResponse {
   selector: 'app-survey',
   imports: [CommonModule, FormsModule],
   templateUrl: './survey.html',
-  styleUrl: './survey.scss'
+  styleUrl: './survey.scss',
+  standalone: true,
 })
 export class SurveyComponent {
   currentStep = signal(0);
@@ -30,7 +32,7 @@ export class SurveyComponent {
   
   constructor(
     private predictionService: PredictionService,
-    private router: Router
+    private router: Router, private predictionTestApi: PredictionTestApi
   ) {}
   
   // Survey questions based on the actual ML model's features
@@ -229,55 +231,175 @@ export class SurveyComponent {
   }
 
   async submitSurvey() {
-    if (!this.canProceed) return;
-    
-    this.isSubmitting.set(true);
-    
-    try {
-      // Add automatic weekend detection
-      const surveyData = { ...this.responses() };
-      surveyData['is_weekend'] = new Date().getDay() === 0 || new Date().getDay() === 6 ? 1 : 0;
-      
-      // Transform survey responses to API format
-      const apiData = this.predictionService.transformSurveyToApiFormat(surveyData);
-      
-      console.log('Sending survey data to API:', apiData);
-      
-      // Save user survey data to session storage for use in movies page
-      sessionStorage.setItem('userSurveyData', JSON.stringify(apiData));
-      
-      // Call real ML API
-      this.predictionService.predictDropoff(apiData).subscribe({
-        next: (response) => {
-          console.log('Prediction response:', response);
-          this.predictionResult.set(response);
-          
-          // Show success message with prediction
-          const probability = Math.round(response.prediction.dropoff_probability * 100);
-          alert(`Prediction complete! 
-            Dropoff Risk: ${response.prediction.risk_level}
-            Probability: ${probability}%
-            
-            Redirecting to view personalized movie recommendations...`);
-          
-          // Navigate to movies page with prediction data
-          this.router.navigate(['/movies'], { 
-            state: { predictionResult: response } 
-          });
-        },
-        error: (error) => {
-          console.error('API Error:', error);
-          alert('Error connecting to prediction service. Please check if the API is running on http://localhost:8000');
-        }
-      });
-      
-    } catch (error) {
-      console.error('Error submitting survey:', error);
-      alert('Error processing survey. Please try again.');
-    } finally {
-      this.isSubmitting.set(false);
-    }
+  if (!this.canProceed) return;
+
+  this.isSubmitting.set(true);
+
+  try {
+    // Add automatic weekend detection
+    const surveyData = { ...this.responses() };
+    surveyData['is_weekend'] = new Date().getDay() === 0 || new Date().getDay() === 6 ? 1 : 0;
+
+    // Transform survey responses to API format (backend-ready)
+    const apiData = this.predictionService.transformSurveyToApiFormat(surveyData);
+
+    // 🔍 Log raw survey responses
+    console.log('📝 Raw Survey Responses (from UI):');
+    console.table(surveyData);
+
+    // 📤 Log API-ready formatted data
+    console.log('📤 Survey Data Being Sent to Backend (API format):');
+    console.dir(apiData, { depth: null });
+
+    // Save data to session storage
+    sessionStorage.setItem('userSurveyData', JSON.stringify(apiData));
+
+    // Make API request
+    this.predictionService.predictDropoff(apiData).subscribe({
+      next: (response) => {
+        this.predictionResult.set(response);
+
+        const dropoffProbability = (response.prediction.dropoff_probability * 100).toFixed(2);
+        const riskLevel = response.prediction.risk_level;
+
+        // ✅ Log result summary
+        console.log('📊 --- Prediction Summary ---');
+        console.log(`🧠 Dropoff Risk Level: ${riskLevel}`);
+        console.log(`📈 Dropoff Probability: ${dropoffProbability}%`);
+        console.log('📦 Full API Response:', response);
+
+        alert(`Prediction complete!
+Dropoff Risk: ${riskLevel}
+Probability: ${dropoffProbability}%
+
+Redirecting to view personalized movie recommendations...`);
+
+        this.router.navigate(['/movies'], {
+          state: { predictionResult: response }
+        });
+      },
+      error: (error) => {
+        console.error('❌ API Error:', error);
+        alert('Error connecting to prediction service. Please ensure it is running at http://localhost:8000');
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error during survey submission:', error);
+    alert('Something went wrong while processing your survey. Please try again.');
+  } finally {
+    this.isSubmitting.set(false);
   }
+}
+
+// async submitSurvey2() {
+//   if (!this.canProceed) return;
+
+//   this.isSubmitting.set(true);
+
+//   try {
+//     // Copy responses and auto-detect weekend
+//     const surveyData = { ...this.responses() };
+//     surveyData['is_weekend'] = new Date().getDay() === 0 || new Date().getDay() === 6 ? 1 : 0;
+
+//     // Inject required `boring_plot` field if user didn’t answer it
+//     if (!('boring_plot' in surveyData)) {
+//       surveyData['boring_plot'] = true; // or false, based on logic/UI
+//     }
+
+//     // Format to match API schema
+//     const apiData = this.predictionTestApi.transformSurveyToApiFormat(surveyData);
+
+//     console.log('📤 Survey Data Sent to Backend:', apiData);
+//     sessionStorage.setItem('userSurveyData', JSON.stringify(apiData));
+
+//     this.predictionTestApi.predictDropoff(apiData).subscribe({
+//       next: (response) => {
+//         this.predictionResult.set(response);
+
+//         const dropoffProbability = (response.prediction.dropoff_probability * 100).toFixed(2);
+//         const riskLevel = response.prediction.risk_level;
+
+//         alert(`Prediction complete!
+// Dropoff Risk: ${riskLevel}
+// Probability: ${dropoffProbability}%
+
+// Redirecting to personalized movie recommendations...`);
+
+//         this.router.navigate(['/movies'], {
+//           state: { predictionResult: response }
+//         });
+//       },
+//       error: (error) => {
+//         console.error('❌ API Error:', error);
+//         alert('Could not reach prediction service. Please ensure FastAPI is running on http://localhost:8000');
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('❌ Error during survey submission:', error);
+//     alert('Something went wrong while processing your survey. Please try again.');
+//   } finally {
+//     this.isSubmitting.set(false);
+//   }
+// }
+
+  // async submitSurvey() {
+
+    
+  //   if (!this.canProceed) return;
+    
+  //   this.isSubmitting.set(true);
+    
+  //   try {
+  //     // Add automatic weekend detection
+  //     const surveyData = { ...this.responses() };
+  //     surveyData['is_weekend'] = new Date().getDay() === 0 || new Date().getDay() === 6 ? 1 : 0;
+      
+  //     // Transform survey responses to API format
+  //     const apiData = this.predictionService.transformSurveyToApiFormat(surveyData);
+      
+  //     console.log('Sending survey data to API:', apiData);
+      
+  //     // Save user survey data to session storage for use in movies page
+  //     sessionStorage.setItem('userSurveyData', JSON.stringify(apiData));
+      
+  //     // Call real ML API
+  //     this.predictionService.predictDropoff(apiData).subscribe({
+  //       next: (response) => {
+  //         console.log('Prediction response:', response);
+  //         this.predictionResult.set(response);
+          
+  //         // Show success message with prediction
+  //         const probability = Math.round(response.prediction.dropoff_probability * 100);
+  //         alert(`Prediction complete! 
+  //           Dropoff Risk: ${response.prediction.risk_level}
+  //           Probability: ${probability}%
+            
+            
+
+  //           Redirecting to view personalized movie recommendations...`);
+
+            
+          
+  //         // Navigate to movies page with prediction data
+  //         this.router.navigate(['/movies'], { 
+  //           state: { predictionResult: response } 
+  //         });
+  //       },
+  //       error: (error) => {
+  //         console.error('API Error:', error);
+  //         alert('Error connecting to prediction service. Please check if the API is running on http://localhost:8000');
+  //       }
+  //     });
+      
+  //   } catch (error) {
+  //     console.error('Error submitting survey:', error);
+  //     alert('Error processing survey. Please try again.');
+  //   } finally {
+  //     this.isSubmitting.set(false);
+  //   }
+  // }
 
   getResponseValue(fieldName: string) {
     return this.responses()[fieldName];

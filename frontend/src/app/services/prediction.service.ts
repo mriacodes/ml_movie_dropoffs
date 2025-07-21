@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, throwError, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 
 export interface UserSurveyData {
   which_genres_do_you_find_yourself_stopping_more_often_before_finishing_historical?: number;
@@ -95,31 +96,159 @@ export interface MoviePredictionResponse {
   providedIn: 'root'
 })
 export class PredictionService {
-  private apiUrl = 'http://localhost:8000';
+  // private apiUrl = 'http://localhost:8000';
+  private apiUrl = 'http://localhost:8000/predict';
+  
+    constructor(private http: HttpClient) {}
+  
+    // Transforms raw survey data to match backend expectations
+   transformSurveyToApiFormat(surveyResponses: any): UserSurveyData {
+  const expectedFields = [
+    'attention_span_score',
+    'patience_score',
+    'social_influence_score',
+    'genre_completion_ratio',
+    'is_weekend',
+    'total_genres_stopped',
+    'total_multitasking_behaviors',
+    'total_stopping_reasons',
+    'boring_plot',
+    'do_you_usually_do_other_things_while_watching_movies_i_chat_or_text_with_others',
+    'do_you_usually_do_other_things_while_watching_movies_no_i_usually_focus_only_on_the_movie',
+    'how_do_you_usually_discover_movies_you_decide_to_watch_reviews_or_ratings',
+    'in_general_what_are_the_main_reasons_you_stop_watching_movies_before_finishing_distractions_or_interruptions',
+    'in_general_what_are_the_main_reasons_you_stop_watching_movies_before_finishing_technical_issues_buffering_audio_etc.',
+    'where_do_you_usually_watch_movies_streaming_at_home_netflix_disney+_etc.',
+    'which_genres_do_you_enjoy_watching_the_most_action',
+    'which_genres_do_you_enjoy_watching_the_most_romance',
+    'which_genres_do_you_find_yourself_stopping_more_often_before_finishing_action',
+    'which_genres_do_you_find_yourself_stopping_more_often_before_finishing_historical',
+    'which_genres_do_you_find_yourself_stopping_more_often_before_finishing_romance',
+    'why_do_you_usually_choose_to_watch_movies_awards_or_critical_acclaim',
+    'why_do_you_usually_choose_to_watch_movies_trailer_or_promotional_material',
+    'why_do_you_usually_pause_the_movie_feeling_bored_or_uninterested',
+    'why_do_you_usually_pause_the_movie_lost_focus_or_distracted',
+    'why_do_you_usually_pause_the_movie_to_discuss_something_with_others_watching'
+  ];
 
-  constructor(private http: HttpClient) { }
+  // Start with empty object
+  const data: UserSurveyData = {};
+
+  // 1. Normalize input values from raw form
+  Object.keys(surveyResponses).forEach(key => {
+    let value = surveyResponses[key];
+    if (typeof value === 'boolean') {
+      value = value ? 1 : 0;
+    }
+    (data as any)[key] = value;
+  });
+
+  // 2. Add computed/default fields if missing
+  const computedDefaults = {
+    total_genres_stopped: 2,
+    total_stopping_reasons: 3,
+    genre_completion_ratio: 0.6,
+    patience_score: 0.5,
+    attention_span_score: 0.5,
+    total_multitasking_behaviors: 2,
+    social_influence_score: 5,
+    is_weekend: new Date().getDay() === 0 || new Date().getDay() === 6 ? 1 : 0
+  };
+
+  Object.keys(computedDefaults).forEach(key => {
+    if (!(key in data) || data[key as keyof UserSurveyData] === undefined) {
+      (data as any)[key] = (computedDefaults as any)[key];
+    }
+  });
+
+  // 3. Ensure all expected fields are present for the API
+  const apiFormatted: UserSurveyData = {} as any;
+
+  for (const field of expectedFields) {
+    if (field in data) {
+      apiFormatted[field as keyof UserSurveyData] = data[field as keyof UserSurveyData];
+
+    } else {
+      console.warn(`Missing optional field: ${field}`);
+      apiFormatted[field as keyof UserSurveyData] = 0; // Fallback (boolean converted to 0)
+    }
+  }
+
+  return apiFormatted;
+}
+
+  
+    // Make POST request to FastAPI backend
+    // predictDropoff(data: UserSurveyData): Observable<PredictionResponse> {
+    //   return this.http.post<PredictionResponse>(this.apiUrl, data);
+    // }
+  
+  //   predictDropoff(userData: UserSurveyData): Observable<PredictionResponse> {
+  //     const headers = new HttpHeaders({
+  //       'Content-Type': 'application/json',
+  //     });
+  
+  //     return this.http.post<PredictionResponse>(
+  //       `${this.apiUrl}/predict`,
+  //       userData,
+  //       { headers }
+  //     );
+  //   } //version 1 , 
+
+  //    predictDropoff(userData: UserSurveyData): Observable<PredictionResponse> {
+  //   const headers = new HttpHeaders({
+  //     'Content-Type': 'application/json',
+  //   });
+
+  //   return this.http.post<PredictionResponse>(
+  //     `${this.apiUrl}/predict`, 
+  //     userData, 
+  //     { headers }
+  //   );
+  // } //version 2
+
+  predictDropoff(userData: UserSurveyData): Observable<PredictionResponse> {
+    const headers = new HttpHeaders({ 'Content-Type': 'application/json' });
+
+    return this.http.post<PredictionResponse>(
+      `${this.apiUrl}/predict`,
+      userData,
+      { headers }
+    ).pipe(
+      catchError(error => {
+        console.error('Prediction API error:', error);
+        return throwError(() => new Error('Prediction failed. Please try again later.'));
+      })
+    );
+  }
+
+  // constructor(private http: HttpClient) { }
 
   /**
    * Test API connection and health
    */
-  testConnection(): Observable<ApiHealthResponse> {
-    return this.http.get<ApiHealthResponse>(`${this.apiUrl}/health`);
-  }
+  // testConnection(): Observable<ApiHealthResponse> {
+  //   return this.http.get<ApiHealthResponse>(`${this.apiUrl}/health`);
+  // }
+
+  testConnection(): Observable<boolean> {
+  return this.http.get(`${this.apiUrl}/ping`, { responseType: 'text' }).pipe(
+    map(response => {
+      console.log('API Connection Successful:', response);
+      return true;
+    }),
+    catchError(error => {
+      console.error('API Connection Failed:', error);
+      return of(false);
+    })
+  );
+}
+
 
   /**
    * Get prediction from user survey data
    */
-  predictDropoff(userData: UserSurveyData): Observable<PredictionResponse> {
-    const headers = new HttpHeaders({
-      'Content-Type': 'application/json',
-    });
-
-    return this.http.post<PredictionResponse>(
-      `${this.apiUrl}/predict`, 
-      userData, 
-      { headers }
-    );
-  }
+ 
 
   /**
    * Run test prediction with sample data
@@ -190,41 +319,5 @@ export class PredictionService {
   /**
    * Transform survey responses to API format
    */
-  transformSurveyToApiFormat(surveyResponses: any): UserSurveyData {
-    // Create the data object with all the actual model features
-    const data: UserSurveyData = {};
-    
-    // Map each survey response to the corresponding model feature
-    Object.keys(surveyResponses).forEach(key => {
-      // Convert boolean responses to 0/1
-      let value = surveyResponses[key];
-      if (typeof value === 'boolean') {
-        value = value ? 1 : 0;
-      }
-      
-      // Assign to the correct property name
-      (data as any)[key] = value;
-    });
-
-    // Set default values for missing fields
-    const defaults = {
-      total_genres_stopped: 2,
-      total_stopping_reasons: 3,
-      genre_completion_ratio: 0.6,
-      patience_score: 0.5,
-      attention_span_score: 0.5,
-      total_multitasking_behaviors: 2,
-      social_influence_score: 5,
-      is_weekend: new Date().getDay() === 0 || new Date().getDay() === 6 ? 1 : 0
-    };
-
-    // Apply defaults for missing values
-    Object.keys(defaults).forEach(key => {
-      if (!(key in data) || data[key as keyof UserSurveyData] === undefined) {
-        (data as any)[key] = (defaults as any)[key];
-      }
-    });
-
-    return data;
-  }
+ 
 }

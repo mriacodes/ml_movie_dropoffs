@@ -10,6 +10,9 @@ from typing import Dict, Any, List
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from fastapi import FastAPI
+
+app = FastAPI()
 
 app = FastAPI(
     title="Movie Dropoff Prediction API",
@@ -24,6 +27,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ✅ Health check route
+@app.get("/ping")
+def ping():
+    return "pong"
+
+
 
 class MovieDropoffPredictor:
     def __init__(self):

@@ -90,10 +90,10 @@
           <div class="poster-placeholder">{{ movie.posterUrl }}</div>
           
           <!-- Prediction Badge -->
-          <div class="prediction-badge" 
+          <!-- <div class="prediction-badge" 
                [class]="'prediction-' + getPredictionColor(movie.completionLikelihood || 0)">
             {{ movie.completionLikelihood }}%
-          </div>
+          </div> -->
         </div>
 
         <!-- Movie Info -->
@@ -112,15 +112,15 @@
           <!-- Prediction Summary -->
           <div class="prediction-summary">
             <div class="prediction-bar">
-              <div class="prediction-fill" 
+              <!-- <div class="prediction-fill" 
                    [style.width.%]="movie.completionLikelihood"
                    [class]="'fill-' + getPredictionColor(movie.completionLikelihood || 0)">
-              </div>
-            </div>
+              </div> -->
+            <!-- </div>
             <p class="prediction-text text-sm" 
                [class]="'text-' + getPredictionColor(movie.completionLikelihood || 0)">
               {{ getPredictionText(movie.completionLikelihood || 0) }}
-            </p>
+            </p> -->
           </div>
         </div>
       </div>
@@ -144,11 +144,11 @@
 </div>
 
 <!-- Movie Detail Modal -->
-<div *ngIf="selectedMovie()" class="movie-modal-overlay" (click)="closeMovieDetail()">
+<div *ngIf="selectedMovie()" class="movie-modal-overlay" >
   <div class="movie-modal" (click)="$event.stopPropagation()">
     <div class="modal-header">
       <h2 class="h3">{{ selectedMovie()!.title }}</h2>
-      <button class="close-btn" (click)="closeMovieDetail()">
+      <button class="close-btn">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -191,14 +191,14 @@
           
           <div class="prediction-gauge">
             <div class="gauge-container">
-              <div class="gauge-fill" 
+              <!-- <div class="gauge-fill" 
                    [style.width.%]="selectedMovie()!.completionLikelihood"
                    [class]="'gauge-' + getPredictionColor(selectedMovie()!.completionLikelihood || 0)">
-              </div>
+              </div> -->
             </div>
             <div class="gauge-label">
               <span class="gauge-percentage">{{ selectedMovie()!.completionLikelihood }}%</span>
-              <span class="gauge-text">{{ getPredictionText(selectedMovie()!.completionLikelihood || 0) }}</span>
+              <!-- <span class="gauge-text">{{ getPredictionText(selectedMovie()!.completionLikelihood || 0) }}</span> -->
             </div>
           </div>
 
