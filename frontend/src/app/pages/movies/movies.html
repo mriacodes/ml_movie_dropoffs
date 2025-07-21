@@ -165,16 +165,17 @@
 </div>
 
 <!-- Movie Detail Modal -->
-<div *ngIf="selectedMovie()" class="movie-modal-overlay" >
+<div *ngIf="selectedMovie()" class="movie-modal-overlay" (click)="closeModal()">
   <div class="movie-modal" (click)="$event.stopPropagation()">
     <div class="modal-header">
       <h2 class="h3">{{ selectedMovie()!.title }}</h2>
-      <button class="close-btn">
+      <!-- <button class="close-btn">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
         </svg>
-      </button>
+      </button> -->
+      <button class="modal-close" (click)="closeModal()">✖</button>
     </div>
     
     <div class="modal-content">
@@ -207,32 +208,39 @@
         </div>
 
         <!-- Detailed Prediction -->
-        <div class="prediction-detailed">
-          <h3 class="h5">🎯 Your Prediction</h3>
-          
-          <div class="prediction-gauge">
-            <div class="gauge-container">
-              <!-- <div class="gauge-fill" 
-                   [style.width.%]="selectedMovie()!.completionLikelihood"
-                   [class]="'gauge-' + getPredictionColor(selectedMovie()!.completionLikelihood || 0)">
-              </div> -->
-            </div>
-            <div class="gauge-label">
-              <span class="gauge-percentage">{{ selectedMovie()!.completionLikelihood }}%</span>
-              <!-- <span class="gauge-text">{{ getPredictionText(selectedMovie()!.completionLikelihood || 0) }}</span> -->
-            </div>
-          </div>
+       <div class="prediction-detailed">
+  <h3 class="h5">🎯 Your Prediction</h3>
 
-          <div class="prediction-factors">
-            <h4 class="h6">Factors Considered:</h4>
-            <ul class="factors-list">
-              <li>Your genre preferences</li>
-              <li>Movie length ({{ selectedMovie()!.runtime }} min)</li>
-              <li>Your attention span patterns</li>
-              <li>Historical viewing behavior</li>
-            </ul>
-          </div>
-        </div>
+  <div class="prediction-gauge">
+    <div class="gauge-container">
+  <div 
+    class="gauge-fill"
+    [style.width.%]="selectedMovie()!.completionLikelihood"
+    [class]="'gauge-' + getPredictionColor(selectedMovie()!.completionLikelihood || 0)">
+  </div>
+</div>
+
+<div class="gauge-label">
+  <span class="gauge-percentage">{{ selectedMovie()!.completionLikelihood }}%</span>
+  <span class="gauge-text">{{ getPredictionText(selectedMovie()!.completionLikelihood || 0) }}</span>
+</div>
+
+  </div>
+
+  <div class="prediction-info">
+    <p><strong>Dropoff Probability:</strong> {{ selectedMovie()!.dropoffProbability }}%</p>
+    <p><strong>Risk Level:</strong> {{ selectedMovie()!.riskLevel }}</p>
+    <p><strong>Confidence:</strong> {{ selectedMovie()!.confidence }}%</p>
+  </div>
+
+  <div class="prediction-factors">
+    <h4 class="h6">Recommendations:</h4>
+    <ul class="factors-list">
+      <li *ngFor="let rec of selectedMovie()!.recommendations">{{ rec }}</li>
+    </ul>
+  </div>
+</div>
+
       </div>
     </div>
   </div>

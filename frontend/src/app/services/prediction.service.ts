@@ -68,6 +68,11 @@ export interface Movie {
   starCast: string;
   completionLikelihood?: number;
   dropoffProbability?: number;
+
+
+  riskLevel?: string;
+  recommendations?: string[];
+  confidence?: number;
 }
 
 export interface MoviesResponse {
@@ -101,6 +106,7 @@ export class PredictionService {
     private testApiUrl = 'http://localhost:8000';
       private tmdbApiKey = '9bedd8178358fe73088aaca74b58c6a8'; // Replace with your actual TMDb API key
   private tmdbBaseUrl = 'https://api.themoviedb.org/3';
+  private apiUrl2 = 'http://localhost:8000/';
 
   
     constructor(private http: HttpClient) {}
@@ -375,7 +381,7 @@ export class PredictionService {
     });
 
     return this.http.post<MoviePredictionResponse>(
-      `${this.apiUrl}/movies/${movieId}/predict`,
+      `${this.apiUrl2}movies/${movieId}/predict`,
       userData,
       { headers }
     );

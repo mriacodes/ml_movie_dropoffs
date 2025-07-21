@@ -1,4 +1,4 @@
-import { Component, signal, computed, OnInit } from '@angular/core';
+ import { Component, signal, computed, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { PredictionService, Movie, MoviesResponse, UserSurveyData } from '../../services/prediction.service';
@@ -17,6 +17,7 @@ interface FilterOptions {
   standalone: true,
 })
 export class MoviesComponent implements OnInit {
+
 
   isLoading = signal(false);
   movies = signal<Movie[]>([]);
@@ -252,6 +253,30 @@ export class MoviesComponent implements OnInit {
     sortOrder: filters.sortOrder
   });
   this.updateFilter('sortBy', value);
+}
+
+closeModal() {
+  this.selectedMovie.set(null);
+}
+
+getPredictionColor(value: number): string {
+  if (value >= 70) {
+    return 'green'; // High likelihood to complete
+  } else if (value >= 40) {
+    return 'yellow'; // Medium
+  } else {
+    return 'red'; // Low likelihood
+  }
+}
+
+getPredictionText(value: number): string {
+  if (value >= 70) {
+    return 'Likely to Complete';
+  } else if (value >= 40) {
+    return 'Moderate Risk of Dropoff';
+  } else {
+    return 'High Risk of Dropoff';
+  }
 }
 
 

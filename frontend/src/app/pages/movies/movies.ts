@@ -24,6 +24,7 @@ export class MoviesComponent implements OnInit {
   errorMessage = signal<string | null>(null);
   userSurveyData = signal<UserSurveyData | null>(null);
   predictionResult = signal<PredictionResponse | null>(null);
+  
 
   
   filters = signal<FilterOptions>({
@@ -69,19 +70,47 @@ export class MoviesComponent implements OnInit {
 });
 
 
- ngOnInit() {
-  // Get survey data
+//  ngOnInit() {
+//   // Get survey data
+//   const surveyData = sessionStorage.getItem('userSurveyData');
+//   if (surveyData) {
+//     try {
+//       this.userSurveyData.set(JSON.parse(surveyData));
+//     } catch (error) {
+//       console.error('Invalid survey data in sessionStorage:', error);
+//     }
+//   }
+
+//   // Get prediction result
+//   const navigation = window.history.state;
+//   if (navigation && navigation.predictionResult) {
+//     this.predictionResult.set(navigation.predictionResult);
+//     sessionStorage.setItem('predictionResult', JSON.stringify(navigation.predictionResult));
+//   } else {
+//     const savedResult = sessionStorage.getItem('predictionResult');
+//     if (savedResult) {
+//       this.predictionResult.set(JSON.parse(savedResult));
+//     }
+//   }
+
+//   this.loadMovies();
+// }
+
+ngOnInit() {
   const surveyData = sessionStorage.getItem('userSurveyData');
   if (surveyData) {
     try {
       this.userSurveyData.set(JSON.parse(surveyData));
     } catch (error) {
-      console.error('Invalid survey data in sessionStorage:', error);
+      console.error('Failed to parse survey data:', error);
+      this.userSurveyData.set(null);
     }
+  } else {
+    this.userSurveyData.set(null);
   }
 
-  // Get prediction result
   const navigation = window.history.state;
+
   if (navigation && navigation.predictionResult) {
     this.predictionResult.set(navigation.predictionResult);
     sessionStorage.setItem('predictionResult', JSON.stringify(navigation.predictionResult));
@@ -94,6 +123,7 @@ export class MoviesComponent implements OnInit {
 
   this.loadMovies();
 }
+
 
 
   async loadMovies() {
@@ -184,12 +214,23 @@ export class MoviesComponent implements OnInit {
     const moviesWithPredictions = await Promise.all(
       this.movies().map(async (movie) => {
         try {
+          console.log(`Predicting for movie: ${movie.id} + ${userData}`);
+          // const prediction = await this.predictionService.predictMovieCompletion(movie.id, userData).toPromise();
+          // return {
+          //   ...movie,
+          //   completionLikelihood: Math.round((prediction?.completion_likelihood || 0.5) * 100),
+          //   dropoffProbability: Math.round((prediction?.dropoff_probability || 0.5) * 100)
+          // };
           const prediction = await this.predictionService.predictMovieCompletion(movie.id, userData).toPromise();
-          return {
-            ...movie,
-            completionLikelihood: Math.round((prediction?.completion_likelihood || 0.5) * 100),
-            dropoffProbability: Math.round((prediction?.dropoff_probability || 0.5) * 100)
-          };
+return {
+  ...movie,
+  completionLikelihood: Math.round((prediction?.completion_likelihood || 0.5) * 100),
+  dropoffProbability: Math.round((prediction?.dropoff_probability || 0.5) * 100),
+  riskLevel: prediction?.risk_level || "Unknown",
+  recommendations: prediction?.recommendations || [],
+  confidence: Math.round((prediction?.confidence || 0.8) * 100)
+};
+
         } catch (error) {
           console.error(`Error predicting for movie ${movie.title}:`, error);
           // Return movie with default prediction based on user's general behavior
@@ -332,4 +373,11 @@ export class MoviesComponent implements OnInit {
   console.log('Sort by changed to:', value);
   this.updateFilter('sortBy', value);
 }
+
+closeModal() {
+  this.selectedMovie.set(null);
+}
+
+
+
 }
