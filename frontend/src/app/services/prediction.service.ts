@@ -97,7 +97,9 @@ export interface MoviePredictionResponse {
 })
 export class PredictionService {
   // private apiUrl = 'http://localhost:8000';
-  private apiUrl = 'http://localhost:8000/predict';
+  private apiUrl = 'http://localhost:8000/predict/';
+    private testApiUrl = 'http://localhost:8000';
+
   
     constructor(private http: HttpClient) {}
   
@@ -211,7 +213,7 @@ export class PredictionService {
     const headers = new HttpHeaders({ 'Content-Type': 'application/json' });
 
     return this.http.post<PredictionResponse>(
-      `${this.apiUrl}/predict`,
+      `${this.apiUrl}`,
       userData,
       { headers }
     ).pipe(
@@ -232,7 +234,7 @@ export class PredictionService {
   // }
 
   testConnection(): Observable<boolean> {
-  return this.http.get(`${this.apiUrl}/ping`, { responseType: 'text' }).pipe(
+  return this.http.get(`${this.testApiUrl}/ping`, { responseType: 'text' }).pipe(
     map(response => {
       console.log('API Connection Successful:', response);
       return true;
